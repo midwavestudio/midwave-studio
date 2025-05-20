@@ -1,0 +1,23 @@
+{
+  "version": 2,
+  "public": false,
+  "github": {
+    "enabled": true,
+    "silent": true,
+    "autoAlias": true
+  },
+  "git": {
+    "deploymentEnabled": {
+      "main": true
+    }
+  },
+  "builds": [
+    {
+      "src": "package.json",
+      "use": "@vercel/next"
+    }
+  ],
+  "env": {
+    "NEXT_PUBLIC_GA_MEASUREMENT_ID": "G-CPEJP1DN9M"
+  }
+} 
