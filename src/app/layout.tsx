@@ -4,6 +4,7 @@ import { Analytics } from "@vercel/analytics/react";
 import { GoogleAnalytics } from "@next/third-parties/google";
 import { AuthProvider } from "../lib/contexts/AuthContext";
 import "./globals.css";
+import Script from "next/script";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -21,15 +22,6 @@ export const metadata: Metadata = {
   keywords: ["design agency", "software development", "luxury digital solutions", "high-end web design"],
 };
 
-// Simple error boundary component
-function ErrorBoundary({ children }: { children: React.ReactNode }) {
-  return (
-    <div>
-      {children}
-    </div>
-  );
-}
-
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -37,16 +29,32 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
+      <head>
+        {/* Add polyfill for clipboard API */}
+        <Script id="clipboard-polyfill">{`
+          // Clipboard API polyfill and error handling
+          if (typeof window !== 'undefined') {
+            window.addEventListener('error', function(e) {
+              // Check if error is related to clipboard
+              if (e && e.message && typeof e.message === 'string' && 
+                  (e.message.includes('clipboard') || e.message.includes('Clipboard'))) {
+                console.warn('Clipboard operation failed, but error was prevented from crashing the app:', e.message);
+                // Prevent the error from bubbling up
+                e.preventDefault();
+                e.stopPropagation();
+              }
+            }, true);
+          }
+        `}</Script>
+      </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <ErrorBoundary>
           <AuthProvider>
             {children}
             <Analytics />
             <GoogleAnalytics gaId={process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID || ''} />
           </AuthProvider>
-        </ErrorBoundary>
       </body>
     </html>
   );

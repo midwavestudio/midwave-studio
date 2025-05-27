@@ -1,4 +1,7 @@
-import { event } from '@next/third-parties/google';
+'use client';
+
+// Replace the direct import with a conditional check
+// import { event } from '@next/third-parties/google';
 
 type EventParams = {
   category?: string;
@@ -16,7 +19,17 @@ export const trackEvent = (action: string, params?: EventParams) => {
   if (typeof window === 'undefined') return;
   
   try {
-    event(action, params);
+    // Safely check if the GA event function is available
+    if (typeof window !== 'undefined') {
+      // Use dynamic import pattern instead of direct call
+      import('@next/third-parties/google').then(({ event }) => {
+        if (typeof event === 'function') {
+          event(action, params);
+        }
+      }).catch(error => {
+        console.error('Error importing GA module:', error);
+      });
+    }
   } catch (error) {
     console.error('Error tracking GA event:', error);
   }

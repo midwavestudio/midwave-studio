@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { getProjects, Project, createTestFeaturedProject, clearAllProjects } from '@/lib/firebase/projectUtils';
-import { FiEdit, FiTrash2, FiPlus, FiStar, FiAlertTriangle } from 'react-icons/fi';
+import { getProjects, Project, createTestFeaturedProject, clearAllProjects, getMarketingAgencyWebsite } from '@/lib/firebase/projectUtils';
+import { FiEdit, FiTrash2, FiPlus, FiStar, FiAlertTriangle, FiRefreshCw } from 'react-icons/fi';
 import AdminLayout from './AdminLayout';
 
 export default function ProjectsAdminPage() {
@@ -14,6 +14,7 @@ export default function ProjectsAdminPage() {
   const [firebaseInitialized, setFirebaseInitialized] = useState<boolean | null>(null);
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
   const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const [localStorageDebug, setLocalStorageDebug] = useState<string | null>(null);
 
   // Load projects on component mount or when refresh is triggered
   useEffect(() => {
@@ -92,6 +93,118 @@ export default function ProjectsAdminPage() {
     }
   };
 
+  // Function to restore Marketing Agency Website
+  const restoreMarketingAgencyWebsite = () => {
+    try {
+      if (typeof window === 'undefined') return;
+      
+      // Get current projects
+      const localData = localStorage.getItem('localProjects');
+      let projects: Project[] = [];
+      
+      if (localData) {
+        try {
+          projects = JSON.parse(localData);
+        } catch (error) {
+          console.error('Error parsing localStorage projects:', error);
+          projects = [];
+        }
+      }
+      
+      // Check if Marketing Agency Website exists
+      const exists = projects.some(p => p.title === 'Marketing Agency Website');
+      
+      if (!exists) {
+        // Add Marketing Agency Website
+        const marketingAgencyWebsite = getMarketingAgencyWebsite();
+        projects.push(marketingAgencyWebsite);
+        
+        // Save back to localStorage
+        localStorage.setItem('localProjects', JSON.stringify(projects));
+        
+        setSuccessMessage('Marketing Agency Website has been restored!');
+        
+        // Reload projects
+        loadProjects();
+        
+        // Clear success message after 3 seconds
+        setTimeout(() => setSuccessMessage(null), 3000);
+      } else {
+        setSuccessMessage('Marketing Agency Website already exists.');
+        setTimeout(() => setSuccessMessage(null), 3000);
+      }
+    } catch (error) {
+      console.error('Error restoring Marketing Agency Website:', error);
+      setErrorMessage('Failed to restore Marketing Agency Website. Please try again.');
+    }
+  };
+
+  // Function to restore Land Development project
+  const restoreLandDevelopmentProject = () => {
+    try {
+      if (typeof window === 'undefined') return;
+      
+      // Get current projects
+      const localData = localStorage.getItem('localProjects');
+      let projects: Project[] = [];
+      
+      if (localData) {
+        try {
+          projects = JSON.parse(localData);
+        } catch (error) {
+          console.error('Error parsing localStorage projects:', error);
+          projects = [];
+        }
+      }
+      
+      // Check if Land Development already exists - check by both ID and title
+      const exists = projects.some(p => 
+        p.title === 'Land Development' || 
+        p.id === 'land-development' || 
+        p.slug === 'land-development'
+      );
+      
+      if (!exists) {
+        // Create Land Development project
+        const landDevelopmentProject: Project = {
+          id: 'land-development',
+          title: 'Land Development',
+          slug: 'land-development',
+          category: 'Web Development',
+          description: 'Land development project with custom features and responsive design.',
+          thumbnailUrl: '/images/fallback-thumbnail.svg',
+          imageUrls: ['/images/fallback-thumbnail.svg'],
+          featured: true,
+          createdAt: new Date().toISOString(),
+          client: 'Land Development Client',
+          services: ['Web Design', 'Frontend Development', 'CMS Integration'],
+          technologies: ['React', 'Next.js', 'Tailwind CSS'],
+          order: 2
+        };
+        
+        // Add Land Development project
+        projects.push(landDevelopmentProject);
+        
+        // Save back to localStorage
+        localStorage.setItem('localProjects', JSON.stringify(projects));
+        
+        setSuccessMessage('Land Development project has been restored!');
+        
+        // Reload projects
+        loadProjects();
+        
+        // Clear success message after 3 seconds
+        setTimeout(() => setSuccessMessage(null), 3000);
+      } else {
+        setSuccessMessage('Land Development project already exists.');
+        setTimeout(() => setSuccessMessage(null), 3000);
+      }
+    } catch (error) {
+      console.error('Error restoring Land Development project:', error);
+      setErrorMessage('Failed to restore Land Development project. Please try again.');
+    }
+  };
+
   // Function to toggle featured status
   const toggleFeatured = async (project: Project) => {
     try {
@@ -126,6 +239,144 @@ export default function ProjectsAdminPage() {
     }
   };
 
+  // Function to inspect localStorage data
+  const inspectLocalStorage = () => {
+    try {
+      const localData = localStorage.getItem('localProjects');
+      if (localData) {
+        try {
+          const projects = JSON.parse(localData) as Project[];
+          
+          // Create a detailed report of the projects
+          const projectDetails = projects.map(p => ({
+            id: p.id,
+            title: p.title,
+            category: p.category,
+            featured: p.featured,
+            thumbnailExists: !!p.thumbnailUrl,
+            imagesCount: p.imageUrls?.length || 0
+          }));
+          
+          console.log('LocalStorage projects:', projectDetails);
+          
+          // Display basic info in the UI
+          const projectNames = projects.map(p => p.title).join(', ');
+          setSuccessMessage(`Found ${projects.length} projects in localStorage: ${projectNames}`);
+        } catch (error) {
+          setErrorMessage('Error parsing localStorage data');
+        }
+      } else {
+        setErrorMessage('No projects found in localStorage');
+      }
+    } catch (error) {
+      setErrorMessage('Error accessing localStorage');
+    }
+  };
+
+  // Clear the Land Development project from localStorage
+  const clearLandDevelopmentProject = () => {
+    try {
+      if (typeof window === 'undefined') return;
+      
+      // Get current projects
+      const localData = localStorage.getItem('localProjects');
+      let projects: Project[] = [];
+      
+      if (localData) {
+        try {
+          projects = JSON.parse(localData);
+        } catch (error) {
+          console.error('Error parsing localStorage projects:', error);
+          projects = [];
+        }
+      }
+      
+      // Filter out Land Development project
+      const filteredProjects = projects.filter(p => 
+        p.title !== 'Land Development' && 
+        p.id !== 'land-development' && 
+        p.slug !== 'land-development'
+      );
+      
+      // Save filtered projects back to localStorage
+      localStorage.setItem('localProjects', JSON.stringify(filteredProjects));
+      
+      // Force page refresh
+      window.location.reload();
+    } catch (error) {
+      console.error('Error clearing Land Development project:', error);
+    }
+  };
+
+  // Recreate the Land Development project with verified images
+  const recreateLandDevelopmentProject = () => {
+    try {
+      if (typeof window === 'undefined') return;
+      
+      // First, get current projects
+      const localData = localStorage.getItem('localProjects');
+      let projects: Project[] = [];
+      
+      if (localData) {
+        try {
+          projects = JSON.parse(localData);
+        } catch (error) {
+          console.error('Error parsing localStorage projects:', error);
+          projects = [];
+        }
+      }
+      
+      // Filter out existing Land Development project
+      const filteredProjects = projects.filter(p => 
+        p.title !== 'Land Development' && 
+        p.id !== 'land-development' && 
+        p.slug !== 'land-development'
+      );
+      
+      // Create a new Land Development project with verified images
+      const newLandDevelopmentProject: Project = {
+        id: 'land-development',
+        title: 'Land Development',
+        slug: 'land-development',
+        category: 'Web Development',
+        description: 'Land development project with custom features and responsive design.',
+        fullDescription: 'Comprehensive land development platform that provides tools for property developers and investors.',
+        client: 'Land Development Client',
+        date: '2023',
+        services: ['Web Design', 'Frontend Development', 'CMS Integration'],
+        technologies: ['React', 'Next.js', 'Tailwind CSS'],
+        thumbnailUrl: '/images/adhocthumb.png',
+        imageUrls: [
+          '/images/adhocthumb.png',
+          '/images/adhocmt.png',
+          '/images/adhocmtsmall.png',
+          '/images/Desktop - 1.jpg',
+          '/images/Group 1199.jpg',
+          '/images/Hero Section.jpg',
+          '/images/HOME (1).jpg'
+        ],
+        url: 'https://example.com/land-development',
+        featured: true,
+        order: 2,
+        createdAt: new Date().toISOString()
+      };
+      
+      // Add the new Land Development project
+      filteredProjects.push(newLandDevelopmentProject);
+      
+      // Save updated projects back to localStorage
+      localStorage.setItem('localProjects', JSON.stringify(filteredProjects));
+      
+      setSuccessMessage('Land Development project has been recreated with verified images!');
+      
+      // Force page refresh
+      window.location.reload();
+    } catch (error) {
+      console.error('Error recreating Land Development project:', error);
+      setErrorMessage('Failed to recreate Land Development project. Please try again.');
+    }
+  };
+
   return (
     <AdminLayout>
       <div className="space-y-6">
@@ -136,45 +387,89 @@ export default function ProjectsAdminPage() {
             <p className="text-gray-400">Manage your portfolio projects</p>
           </div>
           
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-2 mb-6">
             <Link 
-              href="/admin/projects/new"
-              className="flex items-center gap-2 px-4 py-2 bg-[#b85a00] hover:bg-[#a04d00] text-white rounded-lg"
+              href="/admin/projects/create" 
+              className="flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary/90 text-white rounded-lg"
             >
               <FiPlus size={16} />
-              <span>New Project</span>
+              <span>Add Project</span>
             </Link>
             
-            <button 
-              onClick={handleCreateTestProject}
-              className="flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg"
-            >
-              <FiPlus size={16} />
-              <span>Test Project</span>
-            </button>
-            
-            <button 
-              onClick={refreshProjects}
-              disabled={isLoading}
-              className="flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg disabled:opacity-50"
-            >
-              {isLoading ? (
-                <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white"></div>
-              ) : (
+            <div className="flex flex-wrap gap-2">
+              <button 
+                onClick={inspectLocalStorage}
+                className="flex items-center gap-2 px-4 py-2 bg-blue-700 hover:bg-blue-600 text-white rounded-lg"
+              >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
-              )}
-              <span>Refresh</span>
-            </button>
-            
-            <button 
-              onClick={() => setShowClearConfirm(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-red-800 hover:bg-red-700 text-white rounded-lg"
-            >
-              <FiTrash2 size={16} />
-              <span>Clear All</span>
-            </button>
+                <span>Debug Storage</span>
+              </button>
+              
+              <button 
+                onClick={() => setShowClearConfirm(true)}
+                className="flex items-center gap-2 px-4 py-2 bg-red-800 hover:bg-red-700 text-white rounded-lg"
+              >
+                <FiTrash2 size={16} />
+                <span>Clear All</span>
+              </button>
+              
+              <button
+                onClick={restoreMarketingAgencyWebsite}
+                className="flex items-center gap-2 px-4 py-2 bg-green-700 hover:bg-green-600 text-white rounded-lg"
+              >
+                <FiRefreshCw size={16} />
+                <span>Restore Marketing Site</span>
+              </button>
+              
+              <button
+                onClick={restoreLandDevelopmentProject}
+                className="flex items-center gap-2 px-4 py-2 bg-yellow-700 hover:bg-yellow-600 text-white rounded-lg"
+              >
+                <FiRefreshCw size={16} />
+                <span>Restore Land Development</span>
+              </button>
+              
+              <button
+                onClick={clearLandDevelopmentProject}
+                className="flex items-center gap-2 px-4 py-2 bg-yellow-700 hover:bg-yellow-600 text-white rounded-lg"
+              >
+                <FiTrash2 size={16} />
+                <span>Clear Land Development</span>
+              </button>
+              
+              <button
+                onClick={recreateLandDevelopmentProject}
+                className="flex items-center gap-2 px-4 py-2 bg-green-700 hover:bg-green-600 text-white rounded-lg"
+              >
+                <FiRefreshCw size={16} />
+                <span>Recreate Land Development</span>
+              </button>
+              
+              <button 
+                onClick={handleCreateTestProject}
+                className="flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg"
+              >
+                <FiPlus size={16} />
+                <span>Test Project</span>
+              </button>
+              
+              <button 
+                onClick={refreshProjects}
+                disabled={isLoading}
+                className="flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg disabled:opacity-50"
+              >
+                {isLoading ? (
+                  <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white"></div>
+                ) : (
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                )}
+                <span>Refresh</span>
+              </button>
+            </div>
           </div>
         </div>
         
@@ -325,10 +620,10 @@ export default function ProjectsAdminPage() {
                 Add Your First Project
               </Link>
               <button 
-                onClick={handleCreateTestProject}
-                className="px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-600 transition-colors"
+                onClick={restoreMarketingAgencyWebsite}
+                className="px-4 py-2 bg-green-700 text-white rounded-lg hover:bg-green-600 transition-colors"
               >
-                Create Test Project
+                Restore Marketing Site
               </button>
             </div>
           </div>

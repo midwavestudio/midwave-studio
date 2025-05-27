@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="1200" height="800" viewBox="0 0 1200 800" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1200" height="800" fill="#1E1E1E"/>
+  <path d="M600 400C650.826 400 699.348 421.071 735.355 457.132C771.361 493.193 792.4 541.805 792.4 592.726C792.4 643.647 771.361 692.258 735.355 728.319C699.348 764.38 650.826 785.451 600 785.451C549.174 785.451 500.652 764.38 464.645 728.319C428.639 692.258 407.6 643.647 407.6 592.726C407.6 541.805 428.639 493.193 464.645 457.132C500.652 421.071 549.174 400 600 400Z" fill="#b85a00"/>
+  <path d="M600 400L792.4 207.274H407.6L600 400Z" fill="#b85a00"/>
+  <text x="600" y="650" text-anchor="middle" font-family="Arial, sans-serif" font-size="60" font-weight="bold" fill="white">Project Image</text>
+</svg> 

@@ -90,7 +90,7 @@ const Header = () => {
           <NavLink href="/">Home</NavLink>
           <NavLink href="/services">Services</NavLink>
           <NavLink href="/about">About</NavLink>
-          {/* Projects link temporarily hidden */}
+          <NavLink href="/projects">Projects</NavLink>
           <NavLink href="/contact">Contact</NavLink>
         </nav>
 
@@ -128,7 +128,7 @@ const Header = () => {
               <MobileNavLink href="/" onClick={toggleMenu}>Home</MobileNavLink>
               <MobileNavLink href="/services" onClick={toggleMenu}>Services</MobileNavLink>
               <MobileNavLink href="/about" onClick={toggleMenu}>About</MobileNavLink>
-              {/* Projects link temporarily hidden */}
+              <MobileNavLink href="/projects" onClick={toggleMenu}>Projects</MobileNavLink>
               <MobileNavLink href="/contact" onClick={toggleMenu}>Contact</MobileNavLink>
             </div>
           </motion.div>

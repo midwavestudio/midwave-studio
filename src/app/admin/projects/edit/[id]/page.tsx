@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { FiSave, FiX, FiImage, FiPlus, FiTrash2 } from 'react-icons/fi';
 import AdminLayout from '../../AdminLayout';
 import { compressImage, Project, PLACEHOLDER_IMAGES } from '@/lib/firebase/projectUtils';
+import React from 'react';
 
 // Helper to slugify a string
 const slugify = (text: string): string => {
@@ -25,7 +26,7 @@ interface EditProjectPageProps {
 
 export default function EditProjectPage({ params }: EditProjectPageProps) {
   const router = useRouter();
-  const { id } = params;
+  const { id } = React.use(params);
   
   const [formData, setFormData] = useState<Project | null>(null);
   const [originalProject, setOriginalProject] = useState<Project | null>(null);
@@ -48,6 +49,30 @@ export default function EditProjectPage({ params }: EditProjectPageProps) {
         if (typeof window === 'undefined') return;
         
         console.log('Fetching project with ID:', id);
+        
+        // Special handling for default projects with fixed IDs
+        if (id === 'land-development') {
+          try {
+            const { getLandDevelopmentProject } = await import('@/lib/firebase/projectUtils');
+            const landDevelopmentProject = getLandDevelopmentProject();
+            setFormData(landDevelopmentProject);
+            setOriginalProject(landDevelopmentProject);
+            
+            if (landDevelopmentProject.thumbnailUrl) {
+              setThumbnailPreview(landDevelopmentProject.thumbnailUrl);
+            }
+            
+            if (landDevelopmentProject.imageUrls && landDevelopmentProject.imageUrls.length > 0) {
+              setImagesPreviews(landDevelopmentProject.imageUrls);
+            }
+            
+            console.log('Land Development project loaded from template');
+            setIsLoading(false);
+            return;
+          } catch (error) {
+            console.error('Error loading Land Development template:', error);
+          }
+        }
         
         // First try to get the project from localStorage
         let project = null;
@@ -387,6 +412,69 @@ export default function EditProjectPage({ params }: EditProjectPageProps) {
       };
       
       console.log('Updating project:', updatedProject.title, '| Featured:', featured);
+      
+      // Handle special IDs differently
+      if (id === 'land-development') {
+        // For Land Development project, we need to:
+        // 1. Update the existing Land Development project if it exists
+        // 2. Otherwise, create a new one with the same ID
+        
+        // Save to localStorage
+        if (typeof window !== 'undefined') {
+          try {
+            // Get existing projects
+            const existingData = localStorage.getItem('localProjects');
+            let projects: Project[] = [];
+            
+            if (existingData) {
+              try {
+                projects = JSON.parse(existingData);
+              } catch (parseError) {
+                console.error('Error parsing localStorage projects:', parseError);
+                throw new Error('Failed to parse localStorage data');
+              }
+            }
+            
+            // Check if a Land Development project already exists
+            const existingIndex = projects.findIndex(p => 
+              p.title === 'Land Development' || 
+              p.id === 'land-development' || 
+              p.slug === 'land-development'
+            );
+            
+            if (existingIndex !== -1) {
+              // Update the existing project
+              projects[existingIndex] = {
+                ...updatedProject,
+                id: projects[existingIndex].id, // Keep the existing ID
+              };
+              console.log('Updated existing Land Development project with ID:', projects[existingIndex].id);
+            } else {
+              // If not found, add as a new project
+              projects.push({
+                ...updatedProject,
+                id: 'land-development',
+              });
+              console.log('Added Land Development project as new project');
+            }
+            
+            // Save back to localStorage
+            localStorage.setItem('localProjects', JSON.stringify(projects));
+            
+            // Redirect back to projects page
+            router.push('/admin/projects');
+            return;
+          } catch (error) {
+            console.error('Error saving Land Development project:', error);
+            setErrors(prev => ({ 
+              ...prev, 
+              submit: 'Failed to save Land Development project. Please try again.' 
+            }));
+            setIsSaving(false);
+            return;
+          }
+        }
+      }
       
       // Try to update using firebaseUtils first
       try {

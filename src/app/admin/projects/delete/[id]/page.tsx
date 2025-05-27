@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { FiAlertTriangle, FiCheck, FiX } from 'react-icons/fi';
 import AdminLayout from '../../AdminLayout';
 import { Project } from '@/lib/firebase/projectUtils';
+import React from 'react';
 
 interface DeleteProjectPageProps {
   params: {
@@ -14,7 +15,7 @@ interface DeleteProjectPageProps {
 
 export default function DeleteProjectPage({ params }: DeleteProjectPageProps) {
   const router = useRouter();
-  const { id } = params;
+  const { id } = React.use(params);
   
   const [project, setProject] = useState<Project | null>(null);
   const [isLoading, setIsLoading] = useState(true);

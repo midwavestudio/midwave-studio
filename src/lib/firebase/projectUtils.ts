@@ -92,6 +92,37 @@ export const getImageHostingServices = (): { name: string, url: string, descript
 };
 
 /**
+ * Get a Land Development project
+ */
+export const getLandDevelopmentProject = (): Project => {
+  return {
+    id: 'land-development',
+    title: 'Land Development',
+    slug: 'land-development',
+    category: 'Web Development',
+    description: 'Land development project with custom features and responsive design.',
+    fullDescription: 'Comprehensive land development platform that provides tools for property developers and investors.',
+    client: 'Land Development Client',
+    date: '2023',
+    services: ['Web Design', 'Frontend Development', 'CMS Integration'],
+    technologies: ['React', 'Next.js', 'Tailwind CSS'],
+    thumbnailUrl: '/images/adhocthumb.png',
+    imageUrls: [
+      '/images/adhocthumb.png',
+      '/images/adhocmt.png',
+      '/images/adhocmtsmall.png',
+      '/images/Desktop - 1.jpg',
+      '/images/Group 1199.jpg',
+      '/images/Hero Section.jpg',
+      '/images/HOME (1).jpg'
+    ],
+    url: 'https://example.com/land-development',
+    featured: true,
+    order: 2
+  };
+};
+
+/**
  * Get all projects from Firestore
  */
 export const getProjects = async (): Promise<Project[]> => {
@@ -139,7 +170,7 @@ export const getProjects = async (): Promise<Project[]> => {
           
           console.log('Normalized localStorage projects featured flags');
           
-          // Add localStorage projects to the array
+          // Add ALL localStorage projects to the array
           allProjects = [...normalizedProjects];
         } catch (error) {
           console.error('Error parsing localStorage projects:', error);
@@ -206,8 +237,21 @@ export const getProjects = async (): Promise<Project[]> => {
       console.error('Error fetching from Firestore:', firestoreError);
     }
     
+    // Make sure Marketing Agency Website is always included
+    const marketingAgencyWebsite = getMarketingAgencyWebsite();
+    if (!allProjects.some(p => p.title === 'Marketing Agency Website')) {
+      allProjects.push(marketingAgencyWebsite);
+    }
+    
+    // Make sure Land Development is always included
+    const landDevelopmentProject = getLandDevelopmentProject();
+    if (!allProjects.some(p => p.title === 'Land Development')) {
+      allProjects.push(landDevelopmentProject);
+    }
+    
     // Return the projects we found, even if the array is empty
     console.log('Returning total projects:', allProjects.length);
+    allProjects.forEach(p => console.log(`Project: ${p.title}, Featured: ${p.featured}, Category: ${p.category}`));
     
     // Sort by order
     return allProjects.sort((a, b) => {
@@ -218,8 +262,8 @@ export const getProjects = async (): Promise<Project[]> => {
   } catch (error) {
     console.error('Error getting projects:', error);
     
-    // Return an empty array if there was an error
-    return [];
+    // Return the Marketing Agency Website if there was an error
+    return [getMarketingAgencyWebsite()];
   }
 };
 
@@ -279,10 +323,19 @@ export const getFeaturedProjects = async (includeTestProjects: boolean = false):
     console.log(`Retrieved ${allProjects.length} total projects`);
     
     // Filter for featured projects with robust type checking
+    // And only keep Marketing Agency Website
     const featuredProjects = allProjects.filter(project => {
       // Skip test projects unless specifically included
       if (!includeTestProjects && project.title?.toLowerCase().includes('test')) {
         console.log(`Skipping test project: ${project.title}`);
+        return false;
+      }
+      
+      // Skip mock projects except for Marketing Agency Website
+      if (project.title !== 'Marketing Agency Website' && 
+          (project.title?.toLowerCase().includes('e-commerce') || 
+           project.title?.toLowerCase().includes('mobile app'))) {
+        console.log(`Skipping mock project: ${project.title}`);
         return false;
       }
       
@@ -301,18 +354,56 @@ export const getFeaturedProjects = async (includeTestProjects: boolean = false):
     const featuredCount = featuredProjects.length;
     console.log(`Found ${featuredCount} featured projects`);
     
-    // If no featured projects found, return default ones
+    // If no featured projects found, return only Marketing Agency Website
     if (featuredCount === 0) {
-      console.warn('No featured projects found, returning default projects');
-      return getDefaultFeaturedProjects();
+      console.warn('No featured projects found, returning default Marketing Agency Website');
+      return [getMarketingAgencyWebsite()];
     }
     
     return featuredProjects;
   } catch (error) {
     console.error('Error in getFeaturedProjects:', error);
-    // Return default projects in case of error
-    return getDefaultFeaturedProjects();
+    // Return only Marketing Agency Website in case of error
+    return [getMarketingAgencyWebsite()];
   }
+};
+
+/**
+ * Provides only the Marketing Agency Website when no projects are found
+ */
+export const getMarketingAgencyWebsite = (): Project => {
+  return {
+    id: 'default-1',
+    title: 'Marketing Agency Website',
+    slug: 'marketing-agency-website',
+    category: 'Web Development',
+    description: 'A modern website for a digital marketing agency with custom animations and responsive design.',
+    thumbnailUrl: '/images/HOME (1).jpg',
+    imageUrls: ['/images/HOME (1).jpg'],
+    featured: true,
+    createdAt: new Date().toISOString(),
+    client: 'XYZ Digital Agency',
+    services: ['Web Design', 'Frontend Development', 'CMS Integration'],
+    technologies: ['React', 'Next.js', 'Tailwind CSS'],
+    order: 1
+  };
+};
+
+// Create a duplicate of the Marketing Agency Website data for server-side use
+// This needs to be outside the 'use client' directive
+export const marketingAgencyWebsiteData = {
+  id: 'default-1',
+  title: 'Marketing Agency Website',
+  slug: 'marketing-agency-website',
+  category: 'Web Development',
+  description: 'A modern website for a digital marketing agency with custom animations and responsive design.',
+  thumbnailUrl: '/images/HOME (1).jpg',
+  imageUrls: ['/images/HOME (1).jpg'],
+  featured: true,
+  client: 'XYZ Digital Agency',
+  services: ['Web Design', 'Frontend Development', 'CMS Integration'],
+  technologies: ['React', 'Next.js', 'Tailwind CSS'],
+  order: 1
 };
 
 /**
@@ -320,53 +411,7 @@ export const getFeaturedProjects = async (includeTestProjects: boolean = false):
  * This ensures the site always displays meaningful content
  */
 const getDefaultFeaturedProjects = (): Project[] => {
-  return [
-    {
-      id: 'default-1',
-      title: 'Marketing Agency Website',
-      slug: 'marketing-agency-website',
-      category: 'Web Development',
-      description: 'A modern website for a digital marketing agency with custom animations and responsive design.',
-      thumbnailUrl: '/images/HOME (1).jpg',
-      imageUrls: ['/images/HOME (1).jpg'],
-      featured: true,
-      createdAt: new Date().toISOString(),
-      client: 'XYZ Digital Agency',
-      services: ['Web Design', 'Frontend Development', 'CMS Integration'],
-      technologies: ['React', 'Next.js', 'Tailwind CSS'],
-      order: 1
-    },
-    {
-      id: 'default-2',
-      title: 'E-commerce Platform',
-      slug: 'ecommerce-platform',
-      category: 'E-commerce',
-      description: 'Full-featured e-commerce platform with product management, cart functionality, and payment integration.',
-      thumbnailUrl: 'https://via.placeholder.com/800x600/1a1a1a/FFFFFF/?text=E-commerce+Platform',
-      imageUrls: ['https://via.placeholder.com/1200x800/1a1a1a/FFFFFF/?text=E-commerce+Platform'],
-      featured: true,
-      createdAt: new Date().toISOString(),
-      client: 'Fashion Retailer',
-      services: ['Web Development', 'Payment Integration', 'UX Design'],
-      technologies: ['Next.js', 'Stripe', 'Firebase'],
-      order: 2
-    },
-    {
-      id: 'default-3',
-      title: 'Mobile App Design',
-      slug: 'mobile-app-design',
-      category: 'UI/UX Design',
-      description: 'Intuitive and elegant mobile application interface design for a fitness tracking app.',
-      thumbnailUrl: 'https://via.placeholder.com/800x600/1a1a1a/FFFFFF/?text=Mobile+App+Design',
-      imageUrls: ['https://via.placeholder.com/1200x800/1a1a1a/FFFFFF/?text=Mobile+App+Design'],
-      featured: true,
-      createdAt: new Date().toISOString(),
-      client: 'FitTrack',
-      services: ['UI Design', 'UX Research', 'Prototyping'],
-      technologies: ['Figma', 'Adobe XD', 'Protopie'],
-      order: 3
-    }
-  ];
+  return [getMarketingAgencyWebsite()];
 };
 
 /**
@@ -519,9 +564,9 @@ export const base64ToBlob = (base64: string): Blob => {
  */
 export const compressImage = (
   file: File,
-  maxWidth: number = 1200,
-  maxHeight: number = 800,
-  quality: number = 0.8
+  maxWidth: number = 2400,
+  maxHeight: number = 1600,
+  quality: number = 0.95
 ): Promise<string> => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -535,6 +580,7 @@ export const compressImage = (
         let width = img.width;
         let height = img.height;
         
+        // Preserve aspect ratio while ensuring image isn't too large
         if (width > height) {
           if (width > maxWidth) {
             height = Math.round((height * maxWidth) / width);
@@ -547,13 +593,34 @@ export const compressImage = (
           }
         }
         
+        // Ensure image is never smaller than minimum dimensions
+        const minDimension = 800;
+        if (width < minDimension && height < minDimension) {
+          // Scale up small images to be at least minDimension on smallest side
+          if (width <= height) {
+            height = Math.round((height * minDimension) / width);
+            width = minDimension;
+          } else {
+            width = Math.round((width * minDimension) / height);
+            height = minDimension;
+          }
+        }
+        
         canvas.width = width;
         canvas.height = height;
         
         const ctx = canvas.getContext('2d');
-        ctx?.drawImage(img, 0, 0, width, height);
         
-        const result = canvas.toDataURL(file.type, quality);
+        // Improved image quality settings
+        if (ctx) {
+          ctx.imageSmoothingEnabled = true;
+          ctx.imageSmoothingQuality = 'high';
+          ctx.drawImage(img, 0, 0, width, height);
+        }
+        
+        // Use image/jpeg for photos and image/png for graphics with transparency
+        const mimeType = file.type === 'image/png' ? 'image/png' : 'image/jpeg';
+        const result = canvas.toDataURL(mimeType, quality);
         resolve(result);
       };
       

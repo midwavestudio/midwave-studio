@@ -4,8 +4,8 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
 import { Project, getFeaturedProjects } from '@/lib/firebase/projectUtils';
-import ProjectCard from './ProjectCard';
-import ProjectModal from './ProjectModal';
+import ProjectCard from '@/components/projects/ProjectCard';
+import ProjectModal from '@/components/projects/ProjectModal';
 
 // Client-side only component wrapper to prevent hydration errors
 const ClientOnly = ({ children }: { children: React.ReactNode }) => {
