@@ -11,20 +11,11 @@
       "main": true
     }
   },
-  "builds": [
-    {
-      "src": "package.json",
-      "use": "@vercel/next"
-    }
-  ],
+  "buildCommand": "next build",
+  "installCommand": "npm install",
+  "framework": "nextjs",
   "env": {
     "NEXT_PUBLIC_GA_MEASUREMENT_ID": "G-CPEJP1DN9M"
-  },
-  "functions": {
-    "api/**/*.js": {
-      "memory": 1024,
-      "maxDuration": 10
-    }
   },
   "devCommand": "next dev -p 5000"
 } 
