@@ -37,7 +37,7 @@ export default function EditProjectPage({ params }: EditProjectPageProps) {
   const [isSaving, setIsSaving] = useState(false);
   const [thumbnailPreview, setThumbnailPreview] = useState<string | null>(null);
   const [imagesPreviews, setImagesPreviews] = useState<string[]>([]);
-  const [imageUrlInput, setImageUrlInput] = useState('');
+  const [expandedImage, setExpandedImage] = useState<string | null>(null);
   
   const thumbnailFileRef = useRef<HTMLInputElement>(null);
   const imageFileRef = useRef<HTMLInputElement>(null);
@@ -280,14 +280,20 @@ export default function EditProjectPage({ params }: EditProjectPageProps) {
       
       const newImages = await Promise.all(newImagePromises);
       
-      setImagesPreviews(prev => [...prev, ...newImages]);
-      setFormData(prev => {
-        if (!prev) return null;
-        return {
-          ...prev,
-          imageUrls: [...(prev.imageUrls || []), ...newImages]
-        };
-      });
+      // Update the preview state
+      const updatedPreviews = [...imagesPreviews, ...newImages];
+      setImagesPreviews(updatedPreviews);
+      
+      // Update the form data directly with the complete list
+      const updatedFormData = {
+        ...formData,
+        imageUrls: updatedPreviews
+      };
+      
+      // Set the updated form data
+      setFormData(updatedFormData);
+      
+      console.log('Images added - new count:', updatedPreviews.length);
     } catch (error) {
       console.error('Error compressing images:', error);
       setErrors(prev => ({ ...prev, imageUrls: 'Failed to process project images' }));
@@ -298,51 +304,43 @@ export default function EditProjectPage({ params }: EditProjectPageProps) {
   const removeImage = (index: number) => {
     if (!formData) return;
     
-    setImagesPreviews(prev => prev.filter((_, i) => i !== index));
-    setFormData(prev => {
-      if (!prev) return null;
-      return {
-        ...prev,
-        imageUrls: (prev.imageUrls || []).filter((_, i) => i !== index)
-      };
-    });
+    console.log('Removing image at index:', index);
+    
+    // Create a new array without the removed image
+    const newPreviews = imagesPreviews.filter((_, i) => i !== index);
+    setImagesPreviews(newPreviews);
+    
+    // Update the form data directly with the new array
+    const updatedFormData = {
+      ...formData,
+      imageUrls: newPreviews
+    };
+    
+    // Set the updated form data
+    setFormData(updatedFormData);
+    
+    console.log('Image removed - new count:', newPreviews.length);
   };
   
-  // Add image by URL
-  const addImageByUrl = () => {
-    if (!formData || !imageUrlInput.trim()) return;
+  // Remove all images
+  const clearAllImages = () => {
+    if (!formData) return;
     
-    const imageUrl = imageUrlInput.trim();
+    console.log('Clearing all images');
     
-    // Validate URL format
-    try {
-      new URL(imageUrl);
-    } catch (error) {
-      setErrors(prev => ({ ...prev, imageUrls: 'Please enter a valid URL' }));
-      return;
-    }
+    // Clear both the preview state and the actual form data
+    setImagesPreviews([]);
     
-    // Update form data with new image URL
-    setFormData(prev => {
-      if (!prev) return null;
-      return {
-        ...prev,
-        imageUrls: [...(prev.imageUrls || []), imageUrl]
-      };
-    });
+    // Important: Create a new copy of the form data with empty imageUrls
+    const updatedFormData = {
+      ...formData,
+      imageUrls: []
+    };
     
-    // Update image previews
-    setImagesPreviews(prev => [...prev, imageUrl]);
+    // Set the updated form data
+    setFormData(updatedFormData);
     
-    // Clear input and any errors
-    setImageUrlInput('');
-    if (errors.imageUrls) {
-      setErrors(prev => {
-        const newErrors = { ...prev };
-        delete newErrors.imageUrls;
-        return newErrors;
-      });
-    }
+    console.log('All images cleared - formData updated');
   };
   
   // Validate form before submission
@@ -363,26 +361,9 @@ export default function EditProjectPage({ params }: EditProjectPageProps) {
       newErrors.description = 'Description is required';
     }
     
-    // Use placeholder thumbnail if none provided
-    if (!formData.thumbnailUrl) {
-      setFormData(prev => {
-        if (!prev) return null;
-        return {
-          ...prev,
-          thumbnailUrl: PLACEHOLDER_IMAGES.THUMBNAIL
-        };
-      });
-    }
-    
-    // Use placeholder images if none provided
-    if (!formData.imageUrls || formData.imageUrls.length === 0) {
-      setFormData(prev => {
-        if (!prev) return null;
-        return {
-          ...prev,
-          imageUrls: [PLACEHOLDER_IMAGES.PROJECT]
-        };
-      });
+    // Check for empty image arrays
+    if (imagesPreviews.length === 0) {
+      console.log('No images in preview state, will use placeholder');
     }
     
     setErrors(newErrors);
@@ -403,21 +384,24 @@ export default function EditProjectPage({ params }: EditProjectPageProps) {
       // Ensure featured is a boolean
       const featured = Boolean(formData.featured);
       
-      // Create updated project object
-      const updatedProject: Project = {
+      // Create a deep clone of the form data to avoid reference issues
+      const updatedProject: Project = JSON.parse(JSON.stringify({
         ...formData,
         featured,
         order: Number(formData.order) || 0,
-        updatedAt: new Date().toISOString()
-      };
+        updatedAt: new Date().toISOString(),
+        imageUrls: imagesPreviews // Use the preview state directly as source of truth
+      }));
       
-      console.log('Updating project:', updatedProject.title, '| Featured:', featured);
+      // Debug log project details
+      console.log('Updating project:', updatedProject.title);
+      console.log('URL:', updatedProject.url);
+      console.log('Images count:', updatedProject.imageUrls?.length || 0);
       
       // Handle special IDs differently
       if (id === 'land-development') {
-        // For Land Development project, we need to:
-        // 1. Update the existing Land Development project if it exists
-        // 2. Otherwise, create a new one with the same ID
+        // For Land Development project, we need a special approach to ensure
+        // data is correctly saved
         
         // Save to localStorage
         if (typeof window !== 'undefined') {
@@ -435,31 +419,35 @@ export default function EditProjectPage({ params }: EditProjectPageProps) {
               }
             }
             
-            // Check if a Land Development project already exists
-            const existingIndex = projects.findIndex(p => 
-              p.title === 'Land Development' || 
-              p.id === 'land-development' || 
-              p.slug === 'land-development'
+            // Always remove the existing project first
+            projects = projects.filter(p => 
+              p.id !== 'land-development' && 
+              p.slug !== 'land-development'
             );
             
-            if (existingIndex !== -1) {
-              // Update the existing project
-              projects[existingIndex] = {
-                ...updatedProject,
-                id: projects[existingIndex].id, // Keep the existing ID
-              };
-              console.log('Updated existing Land Development project with ID:', projects[existingIndex].id);
-            } else {
-              // If not found, add as a new project
-              projects.push({
-                ...updatedProject,
-                id: 'land-development',
-              });
-              console.log('Added Land Development project as new project');
-            }
+            console.log('Removed existing Land Development project from localStorage');
+            
+            // Add the updated project
+            projects.push({
+              ...updatedProject,
+              id: 'land-development',
+              slug: 'land-development'
+            });
+            
+            console.log('Added updated Land Development project to localStorage');
             
             // Save back to localStorage
             localStorage.setItem('localProjects', JSON.stringify(projects));
+            
+            // Double-check the save worked correctly
+            const verifyData = localStorage.getItem('localProjects');
+            if (verifyData) {
+              const verifyProjects = JSON.parse(verifyData) as Project[];
+              const savedProject = verifyProjects.find(p => p.id === 'land-development');
+              if (savedProject) {
+                console.log('Verified save - images count:', savedProject.imageUrls?.length || 0);
+              }
+            }
             
             // Redirect back to projects page
             router.push('/admin/projects');
@@ -764,7 +752,18 @@ export default function EditProjectPage({ params }: EditProjectPageProps) {
                       id="url"
                       name="url"
                       value={formData.url || ''}
-                      onChange={handleChange}
+                      onChange={(e) => {
+                        // Special handling for URL field to ensure it's saved correctly
+                        const urlValue = e.target.value;
+                        console.log('Setting URL to:', urlValue);
+                        setFormData(prev => {
+                          if (!prev) return null;
+                          return {
+                            ...prev,
+                            url: urlValue
+                          };
+                        });
+                      }}
                       className="w-full p-3 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:border-[#b85a00] focus:ring-2 focus:ring-[#b85a00]/50"
                       placeholder="https://example.com"
                     />
@@ -935,14 +934,15 @@ export default function EditProjectPage({ params }: EditProjectPageProps) {
                           <img 
                             src={thumbnailPreview} 
                             alt="Thumbnail preview" 
-                            className="w-full h-full object-cover"
+                            className="w-full h-full object-cover cursor-pointer"
+                            onClick={() => setExpandedImage(thumbnailPreview)}
                           />
                         ) : (
                           <FiImage size={24} className="text-gray-500" />
                         )}
                       </div>
                       
-                      <div className="flex-1 space-y-3">
+                      <div className="flex-1">
                         {/* File upload option */}
                         <div>
                           <input 
@@ -966,38 +966,6 @@ export default function EditProjectPage({ params }: EditProjectPageProps) {
                           </p>
                         </div>
                         
-                        {/* URL input option */}
-                        <div>
-                          <label htmlFor="thumbnailUrl" className="block text-sm font-medium text-gray-300 mb-1">
-                            Or enter image URL
-                          </label>
-                          <div className="flex gap-2">
-                            <input
-                              type="url"
-                              id="thumbnailUrl"
-                              name="thumbnailUrl"
-                              value={formData.thumbnailUrl || ''}
-                              onChange={handleChange}
-                              className="flex-1 px-3 py-2 bg-gray-800 border border-gray-700 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-[#b85a00]/50"
-                              placeholder="https://example.com/image.jpg"
-                            />
-                            <button
-                              type="button"
-                              onClick={() => {
-                                if (formData.thumbnailUrl) {
-                                  setThumbnailPreview(formData.thumbnailUrl);
-                                }
-                              }}
-                              className="px-3 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-md"
-                            >
-                              Preview
-                            </button>
-                          </div>
-                          <p className="mt-1 text-xs text-gray-400">
-                            Direct link to an image (JPG, PNG, WebP)
-                          </p>
-                        </div>
-                        
                         {errors.thumbnailUrl && (
                           <p className="mt-1 text-sm text-red-500">{errors.thumbnailUrl}</p>
                         )}
@@ -1012,7 +980,7 @@ export default function EditProjectPage({ params }: EditProjectPageProps) {
                     </label>
                     <div className="mt-1 space-y-3">
                       {/* File upload option */}
-                      <div>
+                      <div className="flex gap-2">
                         <input 
                           type="file"
                           ref={imageFileRef}
@@ -1030,38 +998,20 @@ export default function EditProjectPage({ params }: EditProjectPageProps) {
                           Add Images
                         </button>
                         
-                        <p className="mt-1 text-xs text-gray-400">
-                          Recommended size: 1200x800px. Max size: 5MB per image
-                        </p>
-                      </div>
-                      
-                      {/* URL input option */}
-                      <div>
-                        <label htmlFor="imageUrl" className="block text-sm font-medium text-gray-300 mb-1">
-                          Or add image by URL
-                        </label>
-                        <div className="flex gap-2">
-                          <input
-                            type="url"
-                            id="imageUrl"
-                            value={imageUrlInput}
-                            onChange={(e) => setImageUrlInput(e.target.value)}
-                            className="flex-1 px-3 py-2 bg-gray-800 border border-gray-700 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-[#b85a00]/50"
-                            placeholder="https://example.com/image.jpg"
-                            onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addImageByUrl())}
-                          />
+                        {imagesPreviews.length > 0 && (
                           <button
                             type="button"
-                            onClick={addImageByUrl}
-                            className="px-3 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-md"
+                            onClick={clearAllImages}
+                            className="px-3 py-2 bg-red-700 hover:bg-red-600 text-white rounded-md"
                           >
-                            Add
+                            Clear All Images
                           </button>
-                        </div>
-                        <p className="mt-1 text-xs text-gray-400">
-                          Direct link to an image (JPG, PNG, WebP)
-                        </p>
+                        )}
                       </div>
+                      
+                      <p className="mt-1 text-xs text-gray-400">
+                        Recommended size: 1200x800px. Max size: 5MB per image
+                      </p>
                       
                       {errors.imageUrls && (
                         <p className="mt-1 text-sm text-red-500">{errors.imageUrls}</p>
@@ -1076,7 +1026,8 @@ export default function EditProjectPage({ params }: EditProjectPageProps) {
                             <img 
                               src={image} 
                               alt={`Project image ${index + 1}`} 
-                              className="w-full h-32 object-cover rounded-md"
+                              className="w-full h-32 object-cover rounded-md cursor-pointer"
+                              onClick={() => setExpandedImage(image)}
                             />
                             <button
                               type="button"
@@ -1092,6 +1043,31 @@ export default function EditProjectPage({ params }: EditProjectPageProps) {
                   </div>
                 </div>
               </div>
+              
+              {/* Expanded Image Modal */}
+              {expandedImage && (
+                <div 
+                  className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4"
+                  onClick={() => setExpandedImage(null)}
+                >
+                  <div className="relative max-w-screen-xl max-h-screen">
+                    <img 
+                      src={expandedImage} 
+                      alt="Expanded view" 
+                      className="max-w-full max-h-[90vh] object-contain rounded-lg"
+                    />
+                    <button
+                      className="absolute top-2 right-2 bg-red-600 text-white p-2 rounded-full"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setExpandedImage(null);
+                      }}
+                    >
+                      <FiX size={24} />
+                    </button>
+                  </div>
+                </div>
+              )}
               
               {/* Project Descriptions */}
               <div className="space-y-4">

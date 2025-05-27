@@ -183,8 +183,15 @@ export default function NewProjectPage() {
       newErrors.description = 'Description is required';
     }
     
-    // Use placeholder thumbnail if none provided
-    if (!formData.thumbnailUrl) {
+    // If no thumbnail but we have project images, use the first project image as thumbnail
+    if (!formData.thumbnailUrl && formData.imageUrls && formData.imageUrls.length > 0) {
+      setFormData(prev => ({
+        ...prev,
+        thumbnailUrl: formData.imageUrls[0]
+      }));
+    }
+    // Otherwise use placeholder thumbnail if none provided
+    else if (!formData.thumbnailUrl) {
       setFormData(prev => ({
         ...prev,
         thumbnailUrl: PLACEHOLDER_IMAGES.THUMBNAIL
