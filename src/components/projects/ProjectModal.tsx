@@ -106,24 +106,34 @@ export default function ProjectModal({ project, isOpen, onClose }: ProjectModalP
   // Handle zoom in
   const zoomIn = () => {
     setZoomLevel(prev => {
-      const newZoom = Math.min(prev + 0.25, 5);
+      // Use a multiplier for more natural zooming
+      const zoomFactor = Math.max(0.2, Math.min(0.3, 1 / prev));
+      const newZoom = Math.min(prev * (1 + zoomFactor), 8);
+      // Round to 2 decimal places for stability
+      const roundedZoom = Math.round(newZoom * 100) / 100;
+      
       // If we're just starting to zoom, center the pan position
-      if (prev === 1 && newZoom > 1) {
+      if (prev === 1 && roundedZoom > 1) {
         setPanPosition({ x: 0, y: 0 });
       }
-      return newZoom;
+      return roundedZoom;
     });
   };
 
   // Handle zoom out
   const zoomOut = () => {
     setZoomLevel(prev => {
-      const newZoom = Math.max(prev - 0.25, 1);
+      // Use a divider for more natural zooming
+      const zoomFactor = Math.max(0.2, Math.min(0.3, 1 / prev));
+      const newZoom = Math.max(prev / (1 + zoomFactor), 1);
+      // Round to 2 decimal places for stability
+      const roundedZoom = Math.round(newZoom * 100) / 100;
+      
       // If we're zooming back to 1, reset pan position
-      if (newZoom === 1) {
+      if (roundedZoom === 1) {
         setPanPosition({ x: 0, y: 0 });
       }
-      return newZoom;
+      return roundedZoom;
     });
   };
 
@@ -169,27 +179,36 @@ export default function ProjectModal({ project, isOpen, onClose }: ProjectModalP
       e.preventDefault();
       e.stopPropagation();
       
-      // Use a smaller zoom increment for smoother zooming
-      const zoomDelta = 0.15;
+      // Use a smaller zoom increment for smoother zooming at high levels
+      // And larger increments when starting to zoom for better UX
+      const baseZoomDelta = 0.1;
+      const zoomDelta = zoomLevel < 2 ? baseZoomDelta * 2 : baseZoomDelta;
       
-      // Get the mouse position relative to the center of the viewport
-      const viewportWidth = window.innerWidth;
-      const viewportHeight = window.innerHeight;
-      const mouseX = e.clientX - viewportWidth / 2;
-      const mouseY = e.clientY - viewportHeight / 2;
+      // Get the mouse position relative to the image
+      const rect = expandedImageRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      
+      // Calculate mouse position relative to the center of the image
+      const mouseX = e.clientX - (rect.left + rect.width / 2);
+      const mouseY = e.clientY - (rect.top + rect.height / 2);
       
       // Current zoom level
       const currentZoom = zoomLevel;
       
-      // Calculate new zoom level
+      // Calculate new zoom level with adaptive zoom speed
       let newZoom = currentZoom;
       if (e.deltaY < 0) {
-        // Zoom in
-        newZoom = Math.min(currentZoom + zoomDelta, 5);
+        // Zoom in - higher precision at higher zoom levels
+        const zoomFactor = Math.max(0.1, Math.min(0.25, 1 / currentZoom));
+        newZoom = Math.min(currentZoom * (1 + zoomFactor), 8);
       } else {
         // Zoom out
-        newZoom = Math.max(currentZoom - zoomDelta, 1);
+        const zoomFactor = Math.max(0.1, Math.min(0.25, 1 / currentZoom));
+        newZoom = Math.max(currentZoom / (1 + zoomFactor), 1);
       }
+      
+      // Round to 2 decimal places for stability
+      newZoom = Math.round(newZoom * 100) / 100;
       
       // Only proceed if zoom actually changed
       if (newZoom !== currentZoom) {
@@ -202,17 +221,16 @@ export default function ProjectModal({ project, isOpen, onClose }: ProjectModalP
           // Calculate how much the pan should change based on mouse position and zoom change
           const zoomRatio = newZoom / currentZoom;
           
-          // Only adjust pan if we're not at zoom level 1 already
-          if (currentZoom > 1.05) {
-            setPanPosition(prev => ({
-              x: mouseX + (prev.x - mouseX) * zoomRatio,
-              y: mouseY + (prev.y - mouseY) * zoomRatio
-            }));
-          }
+          setPanPosition(prev => ({
+            x: mouseX + (prev.x - mouseX) * zoomRatio,
+            y: mouseY + (prev.y - mouseY) * zoomRatio
+          }));
         }
         
-        // Update zoom level
-        setZoomLevel(newZoom);
+        // Update zoom level with requestAnimationFrame for smoother rendering
+        requestAnimationFrame(() => {
+          setZoomLevel(newZoom);
+        });
       }
     }
   };
@@ -485,7 +503,10 @@ export default function ProjectModal({ project, isOpen, onClose }: ProjectModalP
                         width: 'auto',
                         height: 'auto',
                         objectFit: 'contain',
-                        display: 'block'
+                        display: 'block',
+                        imageRendering: zoomLevel > 2 ? 'auto' : '-webkit-optimize-contrast' as any,
+                        willChange: 'transform',
+                        backfaceVisibility: 'hidden'
                       }}
                     />
                   </div>
