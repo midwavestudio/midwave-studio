@@ -139,13 +139,13 @@ export default function AdminDashboard() {
                 </div>
                 <div>
                   <h3 className="text-lg font-medium text-gray-300">{stat.title}</h3>
-                  <p className="text-2xl font-bold text-white">
+                  <div className="text-2xl font-bold text-white">
                     {loading ? (
                       <div className="w-12 h-6 bg-gray-700 animate-pulse rounded"></div>
                     ) : (
                       stat.value
                     )}
-                  </p>
+                  </div>
                 </div>
               </div>
             </div>
