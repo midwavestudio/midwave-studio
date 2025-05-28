@@ -2,633 +2,435 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { getProjects, Project, createTestFeaturedProject, clearAllProjects, getMarketingAgencyWebsite } from '@/lib/firebase/projectUtils';
-import { FiEdit, FiTrash2, FiPlus, FiStar, FiAlertTriangle, FiRefreshCw } from 'react-icons/fi';
-import AdminLayout from './AdminLayout';
+import { useRouter } from 'next/navigation';
+import { FiEdit2, FiEye, FiTrash2, FiPlus, FiSearch, FiStar, FiFilter } from 'react-icons/fi';
+import AdminDashboardLayout from '../AdminDashboardLayout';
 
-export default function ProjectsAdminPage() {
+interface Project {
+  id: string;
+  title: string;
+  slug?: string;
+  description: string;
+  category: string;
+  date: string;
+  thumbnailUrl?: string;
+  imageUrls: string[];
+  featured: boolean;
+  tags?: string[];
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export default function ProjectsListPage() {
+  const router = useRouter();
   const [projects, setProjects] = useState<Project[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
-  const [firebaseInitialized, setFirebaseInitialized] = useState<boolean | null>(null);
-  const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
-  const [showClearConfirm, setShowClearConfirm] = useState(false);
-  const [localStorageDebug, setLocalStorageDebug] = useState<string | null>(null);
-
-  // Load projects on component mount or when refresh is triggered
+  const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [category, setCategory] = useState('');
+  const [categories, setCategories] = useState<string[]>([]);
+  const [sortBy, setSortBy] = useState('updatedAt');
+  const [sortDirection, setSortDirection] = useState('desc');
+  
+  // Load projects from localStorage on component mount
   useEffect(() => {
-    const initializeAndLoad = async () => {
+    const fetchProjects = () => {
+      setLoading(true);
+      
       try {
-        // First, ensure Firebase is initialized
-        const { ensureFirebaseInitialized } = await import('@/lib/firebase/firebase');
-        const result = await ensureFirebaseInitialized();
-        
-        console.log('Firebase initialization check result:', result);
-        setFirebaseInitialized(result);
-        
-        // Then load projects
-        await loadProjects();
+        // Get projects from localStorage
+        if (typeof window !== 'undefined') {
+          const localProjects = localStorage.getItem('localProjects');
+          
+          if (localProjects) {
+            const parsedProjects: Project[] = JSON.parse(localProjects);
+            setProjects(parsedProjects);
+            
+            // Extract unique categories
+            const uniqueCategories = Array.from(
+              new Set(parsedProjects.map(project => project.category))
+            ).filter(Boolean);
+            setCategories(uniqueCategories as string[]);
+          } else {
+            setProjects([]);
+          }
+        }
       } catch (error) {
-        console.error('Error during initialization:', error);
-        setErrorMessage('Failed to initialize the application. Please try refreshing the page.');
-        setIsLoading(false);
+        console.error('Error fetching projects:', error);
+      } finally {
+        setLoading(false);
       }
     };
     
-    initializeAndLoad();
-  }, [lastRefresh]);
-
-  // Function to manually refresh projects
-  const refreshProjects = () => {
-    setIsLoading(true);
-    setLastRefresh(new Date());
+    fetchProjects();
+  }, []);
+  
+  // Filter and sort projects
+  const filteredProjects = projects
+    .filter(project => {
+      // Filter by search term
+      const matchesSearch = 
+        project.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        project.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (project.tags && project.tags.some(tag => 
+          tag.toLowerCase().includes(searchTerm.toLowerCase())
+        ));
+      
+      // Filter by category
+      const matchesCategory = !category || project.category === category;
+      
+      return matchesSearch && matchesCategory;
+    })
+    .sort((a, b) => {
+      const sortByValueA = 
+        sortBy === 'updatedAt' ? (a.updatedAt || a.createdAt || a.date || '') :
+        sortBy === 'title' ? a.title :
+        sortBy === 'category' ? a.category :
+        '';
+        
+      const sortByValueB = 
+        sortBy === 'updatedAt' ? (b.updatedAt || b.createdAt || b.date || '') :
+        sortBy === 'title' ? b.title :
+        sortBy === 'category' ? b.category :
+        '';
+      
+      if (sortDirection === 'asc') {
+        return sortByValueA.localeCompare(sortByValueB);
+      } else {
+        return sortByValueB.localeCompare(sortByValueA);
+      }
+    });
+  
+  // Handle project deletion
+  const handleDeleteProject = (projectId: string) => {
+    if (window.confirm('Are you sure you want to delete this project? This action cannot be undone.')) {
+      try {
+        // Remove project from localStorage
+        const updatedProjects = projects.filter(project => project.id !== projectId);
+        localStorage.setItem('localProjects', JSON.stringify(updatedProjects));
+        setProjects(updatedProjects);
+        
+        // Update categories if needed
+        const uniqueCategories = Array.from(
+          new Set(updatedProjects.map(project => project.category))
+        ).filter(Boolean);
+        setCategories(uniqueCategories as string[]);
+      } catch (error) {
+        console.error('Error deleting project:', error);
+      }
+    }
   };
-
-  // Function to load projects from firestore/localStorage
-  const loadProjects = async () => {
+  
+  // Toggle featured status
+  const toggleFeatured = (projectId: string) => {
     try {
-      setIsLoading(true);
-      setErrorMessage(null);
-      
-      console.log('Starting to load projects...');
-      const allProjects = await getProjects();
-      console.log(`Loaded ${allProjects.length} projects`);
-      
-      // Sort projects by featured status (featured first) and then by title
-      const sortedProjects = allProjects.sort((a, b) => {
-        if (a.featured === b.featured) {
-          return (a.title || '').localeCompare(b.title || '');
+      const updatedProjects = projects.map(project => {
+        if (project.id === projectId) {
+          return {
+            ...project,
+            featured: !project.featured,
+            updatedAt: new Date().toISOString(),
+          };
         }
-        return a.featured ? -1 : 1;
+        return project;
       });
       
-      setProjects(sortedProjects);
+      localStorage.setItem('localProjects', JSON.stringify(updatedProjects));
+      setProjects(updatedProjects);
     } catch (error) {
-      console.error('Error loading projects:', error);
-      setErrorMessage('Failed to load projects. Please try again.');
-    } finally {
-      setIsLoading(false);
+      console.error('Error updating featured status:', error);
     }
   };
-
-  // Function to create a test project
-  const handleCreateTestProject = async () => {
-    try {
-      setErrorMessage(null);
-      const result = await createTestFeaturedProject();
-      if (result.success) {
-        setSuccessMessage('Test project created successfully!');
-        // Reload projects
-        loadProjects();
-        
-        // Clear success message after 3 seconds
-        setTimeout(() => setSuccessMessage(null), 3000);
-      } else {
-        setErrorMessage(result.message || 'Failed to create test project');
-      }
-    } catch (error) {
-      console.error('Error creating test project:', error);
-      setErrorMessage('Failed to create test project. Please try again.');
-    }
-  };
-
-  // Function to restore Marketing Agency Website
-  const restoreMarketingAgencyWebsite = () => {
-    try {
-      if (typeof window === 'undefined') return;
-      
-      // Get current projects
-      const localData = localStorage.getItem('localProjects');
-      let projects: Project[] = [];
-      
-      if (localData) {
-        try {
-          projects = JSON.parse(localData);
-        } catch (error) {
-          console.error('Error parsing localStorage projects:', error);
-          projects = [];
-        }
-      }
-      
-      // Check if Marketing Agency Website exists
-      const exists = projects.some(p => p.title === 'Marketing Agency Website');
-      
-      if (!exists) {
-        // Add Marketing Agency Website
-        const marketingAgencyWebsite = getMarketingAgencyWebsite();
-        projects.push(marketingAgencyWebsite);
-        
-        // Save back to localStorage
-        localStorage.setItem('localProjects', JSON.stringify(projects));
-        
-        setSuccessMessage('Marketing Agency Website has been restored!');
-        
-        // Reload projects
-        loadProjects();
-        
-        // Clear success message after 3 seconds
-        setTimeout(() => setSuccessMessage(null), 3000);
-      } else {
-        setSuccessMessage('Marketing Agency Website already exists.');
-        setTimeout(() => setSuccessMessage(null), 3000);
-      }
-    } catch (error) {
-      console.error('Error restoring Marketing Agency Website:', error);
-      setErrorMessage('Failed to restore Marketing Agency Website. Please try again.');
-    }
-  };
-
-  // Function to restore Land Development project
-  const restoreLandDevelopmentProject = () => {
-    try {
-      if (typeof window === 'undefined') return;
-      
-      // Get current projects
-      const localData = localStorage.getItem('localProjects');
-      let projects: Project[] = [];
-      
-      if (localData) {
-        try {
-          projects = JSON.parse(localData);
-        } catch (error) {
-          console.error('Error parsing localStorage projects:', error);
-          projects = [];
-        }
-      }
-      
-      // Check if Land Development already exists - check by both ID and title
-      const exists = projects.some(p => 
-        p.title === 'Land Development' || 
-        p.id === 'land-development' || 
-        p.slug === 'land-development'
-      );
-      
-      if (!exists) {
-        // Create Land Development project
-        const landDevelopmentProject: Project = {
-          id: 'land-development',
-          title: 'Land Development',
-          slug: 'land-development',
-          category: 'Web Development',
-          description: 'Land development project with custom features and responsive design.',
-          thumbnailUrl: '/images/fallback-thumbnail.svg',
-          imageUrls: ['/images/fallback-thumbnail.svg'],
-          featured: true,
-          createdAt: new Date().toISOString(),
-          client: 'Land Development Client',
-          services: ['Web Design', 'Frontend Development', 'CMS Integration'],
-          technologies: ['React', 'Next.js', 'Tailwind CSS'],
-          order: 2
-        };
-        
-        // Add Land Development project
-        projects.push(landDevelopmentProject);
-        
-        // Save back to localStorage
-        localStorage.setItem('localProjects', JSON.stringify(projects));
-        
-        setSuccessMessage('Land Development project has been restored!');
-        
-        // Reload projects
-        loadProjects();
-        
-        // Clear success message after 3 seconds
-        setTimeout(() => setSuccessMessage(null), 3000);
-      } else {
-        setSuccessMessage('Land Development project already exists.');
-        setTimeout(() => setSuccessMessage(null), 3000);
-      }
-    } catch (error) {
-      console.error('Error restoring Land Development project:', error);
-      setErrorMessage('Failed to restore Land Development project. Please try again.');
-    }
-  };
-
-  // Function to toggle featured status
-  const toggleFeatured = async (project: Project) => {
-    try {
-      // This will be handled in the edit page for simplicity
-      console.log('Toggle featured status for project:', project.id);
-    } catch (error) {
-      console.error('Error toggling featured status:', error);
-      setErrorMessage('Failed to update project. Please try again.');
-    }
-  };
-
-  // Function to handle clearing all projects
-  const handleClearAllProjects = async () => {
-    try {
-      setIsLoading(true);
-      setErrorMessage(null);
-      
-      const result = await clearAllProjects();
-      
-      if (result.success) {
-        setSuccessMessage('All projects have been cleared successfully!');
-        setProjects([]);
-      } else {
-        setErrorMessage(result.message || 'Failed to clear projects');
-      }
-    } catch (error) {
-      console.error('Error clearing projects:', error);
-      setErrorMessage('An unexpected error occurred while clearing projects');
-    } finally {
-      setIsLoading(false);
-      setShowClearConfirm(false);
-    }
-  };
-
-  // Function to inspect localStorage data
-  const inspectLocalStorage = () => {
-    try {
-      const localData = localStorage.getItem('localProjects');
-      if (localData) {
-        try {
-          const projects = JSON.parse(localData) as Project[];
-          
-          // Create a detailed report of the projects
-          const projectDetails = projects.map(p => ({
-            id: p.id,
-            title: p.title,
-            category: p.category,
-            featured: p.featured,
-            thumbnailExists: !!p.thumbnailUrl,
-            imagesCount: p.imageUrls?.length || 0
-          }));
-          
-          console.log('LocalStorage projects:', projectDetails);
-          
-          // Display basic info in the UI
-          const projectNames = projects.map(p => p.title).join(', ');
-          setSuccessMessage(`Found ${projects.length} projects in localStorage: ${projectNames}`);
-        } catch (error) {
-          setErrorMessage('Error parsing localStorage data');
-        }
-      } else {
-        setErrorMessage('No projects found in localStorage');
-      }
-    } catch (error) {
-      setErrorMessage('Error accessing localStorage');
-    }
-  };
-
-  // Clear the Land Development project from localStorage
-  const clearLandDevelopmentProject = () => {
-    try {
-      if (typeof window === 'undefined') return;
-      
-      // Get current projects
-      const localData = localStorage.getItem('localProjects');
-      let projects: Project[] = [];
-      
-      if (localData) {
-        try {
-          projects = JSON.parse(localData);
-        } catch (error) {
-          console.error('Error parsing localStorage projects:', error);
-          projects = [];
-        }
-      }
-      
-      // Filter out Land Development project
-      const filteredProjects = projects.filter(p => 
-        p.title !== 'Land Development' && 
-        p.id !== 'land-development' && 
-        p.slug !== 'land-development'
-      );
-      
-      // Save filtered projects back to localStorage
-      localStorage.setItem('localProjects', JSON.stringify(filteredProjects));
-      
-      // Force page refresh
-      window.location.reload();
-    } catch (error) {
-      console.error('Error clearing Land Development project:', error);
-    }
-  };
-
-  // Recreate the Land Development project with verified images
-  const recreateLandDevelopmentProject = () => {
-    try {
-      if (typeof window === 'undefined') return;
-      
-      // First, get current projects
-      const localData = localStorage.getItem('localProjects');
-      let projects: Project[] = [];
-      
-      if (localData) {
-        try {
-          projects = JSON.parse(localData);
-        } catch (error) {
-          console.error('Error parsing localStorage projects:', error);
-          projects = [];
-        }
-      }
-      
-      // Filter out existing Land Development project
-      const filteredProjects = projects.filter(p => 
-        p.title !== 'Land Development' && 
-        p.id !== 'land-development' && 
-        p.slug !== 'land-development'
-      );
-      
-      // Create a new Land Development project with verified images
-      const newLandDevelopmentProject: Project = {
-        id: 'land-development',
-        title: 'Land Development',
-        slug: 'land-development',
-        category: 'Web Development',
-        description: 'Land development project with custom features and responsive design.',
-        fullDescription: 'Comprehensive land development platform that provides tools for property developers and investors.',
-        client: 'Land Development Client',
-        date: '2023',
-        services: ['Web Design', 'Frontend Development', 'CMS Integration'],
-        technologies: ['React', 'Next.js', 'Tailwind CSS'],
-        thumbnailUrl: '/images/adhocthumb.png',
-        imageUrls: [
-          '/images/adhocthumb.png',
-          '/images/adhocmt.png',
-          '/images/adhocmtsmall.png',
-          '/images/Desktop - 1.jpg',
-          '/images/Group 1199.jpg',
-          '/images/Hero Section.jpg',
-          '/images/HOME (1).jpg'
-        ],
-        url: 'https://example.com/land-development',
-        featured: true,
-        order: 2,
-        createdAt: new Date().toISOString()
-      };
-      
-      // Add the new Land Development project
-      filteredProjects.push(newLandDevelopmentProject);
-      
-      // Save updated projects back to localStorage
-      localStorage.setItem('localProjects', JSON.stringify(filteredProjects));
-      
-      setSuccessMessage('Land Development project has been recreated with verified images!');
-      
-      // Force page refresh
-      window.location.reload();
-    } catch (error) {
-      console.error('Error recreating Land Development project:', error);
-      setErrorMessage('Failed to recreate Land Development project. Please try again.');
-    }
-  };
-
+  
   return (
-    <AdminLayout>
+    <AdminDashboardLayout>
       <div className="space-y-6">
-        {/* Header with action buttons */}
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        {/* Page Header */}
+        <div className="flex justify-between items-center">
           <div>
-            <h1 className="text-2xl font-bold mb-1">Projects</h1>
-            <p className="text-gray-400">Manage your portfolio projects</p>
+            <h1 className="text-2xl font-bold text-white">Projects</h1>
+            <p className="text-gray-400 mt-1">
+              Manage your portfolio projects
+            </p>
           </div>
           
-          <div className="flex flex-wrap gap-2 mb-6">
-            <Link 
-              href="/admin/projects/create" 
-              className="flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary/90 text-white rounded-lg"
-            >
-              <FiPlus size={16} />
-              <span>Add Project</span>
-            </Link>
+          <Link
+            href="/admin/projects/new"
+            className="flex items-center gap-2 px-4 py-2 bg-[#b85a00] hover:bg-[#a04d00] text-white rounded-md transition-colors"
+          >
+            <FiPlus size={16} />
+            <span>New Project</span>
+          </Link>
+        </div>
+        
+        {/* Filters & Search */}
+        <div className="bg-gray-800 rounded-xl border border-gray-700 p-4">
+          <div className="flex flex-col md:flex-row gap-4">
+            <div className="flex-1 relative">
+              <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
+                <FiSearch className="text-gray-400" />
+              </div>
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Search projects..."
+                className="w-full pl-10 pr-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-[#b85a00]/50"
+              />
+            </div>
             
-            <div className="flex flex-wrap gap-2">
-              <button 
-                onClick={inspectLocalStorage}
-                className="flex items-center gap-2 px-4 py-2 bg-blue-700 hover:bg-blue-600 text-white rounded-lg"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                <span>Debug Storage</span>
-              </button>
+            <div className="flex gap-3">
+              <div className="w-full md:w-44 relative">
+                <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
+                  <FiFilter className="text-gray-400" />
+                </div>
+                <select
+                  value={category}
+                  onChange={(e) => setCategory(e.target.value)}
+                  className="w-full pl-10 pr-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-[#b85a00]/50 appearance-none"
+                >
+                  <option value="">All Categories</option>
+                  {categories.map((cat) => (
+                    <option key={cat} value={cat}>{cat}</option>
+                  ))}
+                </select>
+              </div>
               
-              <button 
-                onClick={() => setShowClearConfirm(true)}
-                className="flex items-center gap-2 px-4 py-2 bg-red-800 hover:bg-red-700 text-white rounded-lg"
-              >
-                <FiTrash2 size={16} />
-                <span>Clear All</span>
-              </button>
-              
-              <button
-                onClick={restoreMarketingAgencyWebsite}
-                className="flex items-center gap-2 px-4 py-2 bg-green-700 hover:bg-green-600 text-white rounded-lg"
-              >
-                <FiRefreshCw size={16} />
-                <span>Restore Marketing Site</span>
-              </button>
-              
-              <button
-                onClick={restoreLandDevelopmentProject}
-                className="flex items-center gap-2 px-4 py-2 bg-yellow-700 hover:bg-yellow-600 text-white rounded-lg"
-              >
-                <FiRefreshCw size={16} />
-                <span>Restore Land Development</span>
-              </button>
-              
-              <button
-                onClick={clearLandDevelopmentProject}
-                className="flex items-center gap-2 px-4 py-2 bg-yellow-700 hover:bg-yellow-600 text-white rounded-lg"
-              >
-                <FiTrash2 size={16} />
-                <span>Clear Land Development</span>
-              </button>
-              
-              <button
-                onClick={recreateLandDevelopmentProject}
-                className="flex items-center gap-2 px-4 py-2 bg-green-700 hover:bg-green-600 text-white rounded-lg"
-              >
-                <FiRefreshCw size={16} />
-                <span>Recreate Land Development</span>
-              </button>
-              
-              <button 
-                onClick={handleCreateTestProject}
-                className="flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg"
-              >
-                <FiPlus size={16} />
-                <span>Test Project</span>
-              </button>
-              
-              <button 
-                onClick={refreshProjects}
-                disabled={isLoading}
-                className="flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg disabled:opacity-50"
-              >
-                {isLoading ? (
-                  <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white"></div>
-                ) : (
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                  </svg>
-                )}
-                <span>Refresh</span>
-              </button>
+              <div className="w-full md:w-48">
+                <select
+                  value={`${sortBy}-${sortDirection}`}
+                  onChange={(e) => {
+                    const [newSortBy, newSortDirection] = e.target.value.split('-');
+                    setSortBy(newSortBy);
+                    setSortDirection(newSortDirection);
+                  }}
+                  className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-[#b85a00]/50 appearance-none"
+                >
+                  <option value="updatedAt-desc">Newest First</option>
+                  <option value="updatedAt-asc">Oldest First</option>
+                  <option value="title-asc">Title (A-Z)</option>
+                  <option value="title-desc">Title (Z-A)</option>
+                  <option value="category-asc">Category (A-Z)</option>
+                  <option value="category-desc">Category (Z-A)</option>
+                </select>
+              </div>
             </div>
           </div>
         </div>
         
-        {/* Clear All Confirmation Dialog */}
-        {showClearConfirm && (
-          <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-            <div className="bg-gray-800 rounded-lg p-6 max-w-md w-full">
-              <div className="flex items-center text-red-500 mb-4">
-                <FiAlertTriangle size={24} className="mr-2" />
-                <h3 className="text-xl font-bold">Clear All Projects</h3>
-              </div>
-              <p className="text-gray-300 mb-6">
-                This will permanently delete all projects from both localStorage and Firestore database. 
-                This action cannot be undone. Are you sure you want to continue?
-              </p>
-              <div className="flex justify-end gap-3">
-                <button
-                  onClick={() => setShowClearConfirm(false)}
-                  className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleClearAllProjects}
-                  disabled={isLoading}
-                  className="px-4 py-2 bg-red-700 hover:bg-red-600 text-white rounded-lg flex items-center gap-2"
-                >
-                  {isLoading ? (
-                    <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white"></div>
-                  ) : (
-                    <FiTrash2 size={16} />
-                  )}
-                  Yes, Clear All
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-        
-        {/* Firebase Status */}
-        {firebaseInitialized === false && (
-          <div className="p-4 bg-yellow-900/20 text-yellow-300 rounded-lg">
-            <p className="font-medium">Firebase is not initialized</p>
-            <p className="text-sm mt-1">Projects will be stored in your browser's localStorage instead.</p>
-          </div>
-        )}
-        
-        {/* Error and Success Messages */}
-        {errorMessage && (
-          <div className="p-4 bg-red-900/20 text-red-300 rounded-lg">
-            {errorMessage}
-          </div>
-        )}
-        
-        {successMessage && (
-          <div className="p-4 bg-green-900/20 text-green-300 rounded-lg">
-            {successMessage}
-          </div>
-        )}
-        
         {/* Projects List */}
-        {isLoading ? (
-          <div className="flex flex-col items-center justify-center py-12 space-y-4">
-            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#b85a00]"></div>
-            <p className="text-gray-400">Loading projects...</p>
-          </div>
-        ) : projects.length > 0 ? (
-          <div className="bg-gray-800/50 rounded-lg overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-700">
-                <thead>
-                  <tr className="bg-gray-900/50">
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Title</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Category</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Featured</th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-700">
-                  {projects.map((project) => (
-                    <tr key={project.id} className="hover:bg-gray-700/30">
-                      <td className="px-4 py-3 whitespace-nowrap">
-                        <div className="flex items-center">
-                          {project.thumbnailUrl && (
-                            <div className="flex-shrink-0 h-10 w-10 mr-3">
-                              <img 
-                                className="h-10 w-10 rounded-md object-cover" 
-                                src={project.thumbnailUrl} 
-                                alt={project.title || 'Project thumbnail'} 
-                                onError={(e) => {
-                                  (e.target as HTMLImageElement).onerror = null; 
-                                  (e.target as HTMLImageElement).src = '/images/fallback-thumbnail.jpg';
-                                }}
-                              />
-                            </div>
-                          )}
-                          <div className="ml-0">
-                            <div className="text-sm font-medium text-white">{project.title || 'Untitled Project'}</div>
-                            <div className="text-sm text-gray-400 truncate max-w-xs">{project.description?.substring(0, 60) || 'No description'}{project.description && project.description.length > 60 ? '...' : ''}</div>
-                          </div>
+        <div className="bg-gray-800 rounded-xl border border-gray-700 overflow-hidden">
+          {loading ? (
+            <div className="p-6 space-y-4">
+              {[...Array(4)].map((_, i) => (
+                <div key={i} className="flex items-center space-x-4">
+                  <div className="w-16 h-12 bg-gray-700 animate-pulse rounded"></div>
+                  <div className="space-y-2 flex-1">
+                    <div className="w-1/3 h-4 bg-gray-700 animate-pulse rounded"></div>
+                    <div className="w-1/2 h-3 bg-gray-700 animate-pulse rounded"></div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : filteredProjects.length === 0 ? (
+            <div className="p-6 text-center text-gray-400">
+              {searchTerm || category ? (
+                <p>No projects match your search criteria. Try changing your filters.</p>
+              ) : (
+                <>
+                  <p className="mb-4">No projects found. Start by creating a new project.</p>
+                  <Link
+                    href="/admin/projects/new"
+                    className="inline-block px-4 py-2 bg-[#b85a00] text-white rounded-md hover:bg-[#a04d00] transition-colors"
+                  >
+                    <span className="flex items-center gap-2">
+                      <FiPlus size={16} />
+                      Create Project
+                    </span>
+                  </Link>
+                </>
+              )}
+            </div>
+          ) : (
+            <div className="min-w-full divide-y divide-gray-700">
+              <div className="hidden lg:flex bg-gray-750 text-xs text-gray-400 uppercase tracking-wider">
+                <div className="w-16"></div>
+                <div className="px-6 py-3 w-1/3">Project</div>
+                <div className="px-6 py-3 w-1/6">Category</div>
+                <div className="px-6 py-3 w-1/6">Date</div>
+                <div className="px-6 py-3 w-1/6">Status</div>
+                <div className="px-6 py-3 w-1/6">Actions</div>
+              </div>
+              
+              <div className="divide-y divide-gray-700">
+                {filteredProjects.map((project) => (
+                  <div key={project.id} className="group hover:bg-gray-750 transition-colors">
+                    <div className="hidden lg:flex items-center">
+                      <div className="w-16 h-12 bg-gray-700 overflow-hidden flex-shrink-0 m-2">
+                        {project.thumbnailUrl ? (
+                          <img
+                            src={project.thumbnailUrl}
+                            alt={project.title}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : project.imageUrls && project.imageUrls[0] ? (
+                          <img
+                            src={project.imageUrls[0]}
+                            alt={project.title}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <div className="w-full h-full bg-gray-700" />
+                        )}
+                      </div>
+                      
+                      <div className="px-6 py-4 w-1/3">
+                        <div className="font-medium text-white">{project.title}</div>
+                        <div className="text-gray-400 text-sm truncate max-w-xs">
+                          {project.description.length > 80
+                            ? project.description.substring(0, 80) + '...'
+                            : project.description}
                         </div>
-                      </td>
-                      <td className="px-4 py-3 whitespace-nowrap">
-                        <div className="text-sm text-gray-300">{project.category || 'Uncategorized'}</div>
-                      </td>
-                      <td className="px-4 py-3 whitespace-nowrap">
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                          project.featured 
-                            ? 'bg-amber-900/30 text-amber-300' 
-                            : 'bg-gray-800 text-gray-400'
-                        }`}>
-                          <FiStar className={`${project.featured ? 'text-amber-300' : 'text-gray-500'} mr-1`} size={12} />
-                          {project.featured ? 'Featured' : 'Not Featured'}
+                      </div>
+                      
+                      <div className="px-6 py-4 w-1/6 text-gray-300">
+                        {project.category}
+                      </div>
+                      
+                      <div className="px-6 py-4 w-1/6 text-gray-300">
+                        {project.date}
+                      </div>
+                      
+                      <div className="px-6 py-4 w-1/6">
+                        <span
+                          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                            project.featured
+                              ? 'bg-amber-900/30 text-amber-300'
+                              : 'bg-blue-900/30 text-blue-300'
+                          }`}
+                        >
+                          {project.featured ? 'Featured' : 'Standard'}
                         </span>
-                      </td>
-                      <td className="px-4 py-3 whitespace-nowrap text-right text-sm font-medium">
-                        <div className="flex justify-end gap-3">
-                          <Link 
-                            href={`/admin/projects/edit/${project.id}`}
-                            className="text-blue-400 hover:text-blue-300 transition-colors"
-                            title="Edit Project"
+                      </div>
+                      
+                      <div className="px-6 py-4 w-1/6 flex space-x-2">
+                        <button
+                          onClick={() => toggleFeatured(project.id)}
+                          className={`p-2 rounded ${
+                            project.featured
+                              ? 'bg-amber-900/30 text-amber-300 hover:bg-amber-900/50'
+                              : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                          } transition-colors`}
+                          title={project.featured ? 'Remove from featured' : 'Add to featured'}
+                        >
+                          <FiStar size={16} />
+                        </button>
+                        
+                        <Link
+                          href={`/admin/projects/edit/${project.id}`}
+                          className="p-2 bg-gray-700 hover:bg-gray-600 text-white rounded transition-colors"
+                          title="Edit project"
+                        >
+                          <FiEdit2 size={16} />
+                        </Link>
+                        
+                        <Link
+                          href={`/projects/${project.slug || project.id}`}
+                          target="_blank"
+                          className="p-2 bg-blue-900/30 hover:bg-blue-900/50 text-blue-300 rounded transition-colors"
+                          title="View project"
+                        >
+                          <FiEye size={16} />
+                        </Link>
+                        
+                        <button
+                          onClick={() => handleDeleteProject(project.id)}
+                          className="p-2 bg-red-900/30 hover:bg-red-900/50 text-red-300 rounded transition-colors"
+                          title="Delete project"
+                        >
+                          <FiTrash2 size={16} />
+                        </button>
+                      </div>
+                    </div>
+                    
+                    {/* Mobile view */}
+                    <div className="flex lg:hidden p-4">
+                      <div className="w-16 h-16 bg-gray-700 rounded overflow-hidden flex-shrink-0">
+                        {project.thumbnailUrl ? (
+                          <img
+                            src={project.thumbnailUrl}
+                            alt={project.title}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : project.imageUrls && project.imageUrls[0] ? (
+                          <img
+                            src={project.imageUrls[0]}
+                            alt={project.title}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <div className="w-full h-full bg-gray-700" />
+                        )}
+                      </div>
+                      
+                      <div className="ml-4 flex-1 min-w-0">
+                        <div className="font-medium text-white truncate">{project.title}</div>
+                        <div className="text-gray-400 text-sm mt-1">{project.category}</div>
+                        <div className="flex items-center gap-2 mt-2">
+                          <span
+                            className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                              project.featured
+                                ? 'bg-amber-900/30 text-amber-300'
+                                : 'bg-blue-900/30 text-blue-300'
+                            }`}
                           >
-                            <FiEdit size={20} />
-                          </Link>
-                          <Link 
-                            href={`/admin/projects/delete/${project.id}`}
-                            className="text-red-400 hover:text-red-300 transition-colors"
-                            title="Delete Project"
-                          >
-                            <FiTrash2 size={20} />
-                          </Link>
+                            {project.featured ? 'Featured' : 'Standard'}
+                          </span>
+                          <span className="text-gray-400 text-xs">{project.date}</span>
                         </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                        
+                        <div className="flex mt-3 space-x-2">
+                          <button
+                            onClick={() => toggleFeatured(project.id)}
+                            className={`p-1.5 rounded ${
+                              project.featured
+                                ? 'bg-amber-900/30 text-amber-300 hover:bg-amber-900/50'
+                                : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                            } transition-colors`}
+                          >
+                            <FiStar size={14} />
+                          </button>
+                          
+                          <Link
+                            href={`/admin/projects/edit/${project.id}`}
+                            className="p-1.5 bg-gray-700 hover:bg-gray-600 text-white rounded transition-colors"
+                          >
+                            <FiEdit2 size={14} />
+                          </Link>
+                          
+                          <Link
+                            href={`/projects/${project.slug || project.id}`}
+                            target="_blank"
+                            className="p-1.5 bg-blue-900/30 hover:bg-blue-900/50 text-blue-300 rounded transition-colors"
+                          >
+                            <FiEye size={14} />
+                          </Link>
+                          
+                          <button
+                            onClick={() => handleDeleteProject(project.id)}
+                            className="p-1.5 bg-red-900/30 hover:bg-red-900/50 text-red-300 rounded transition-colors"
+                          >
+                            <FiTrash2 size={14} />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
-        ) : (
-          <div className="text-center py-12 bg-gray-800/50 rounded-lg">
-            <p className="text-gray-400 mb-4">No projects found.</p>
-            <div className="flex justify-center gap-4">
-              <Link 
-                href="/admin/projects/new"
-                className="px-4 py-2 bg-[#b85a00] text-white rounded-lg hover:bg-[#a04d00] transition-colors"
-              >
-                Add Your First Project
-              </Link>
-              <button 
-                onClick={restoreMarketingAgencyWebsite}
-                className="px-4 py-2 bg-green-700 text-white rounded-lg hover:bg-green-600 transition-colors"
-              >
-                Restore Marketing Site
-              </button>
-            </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
-    </AdminLayout>
+    </AdminDashboardLayout>
   );
 } 
