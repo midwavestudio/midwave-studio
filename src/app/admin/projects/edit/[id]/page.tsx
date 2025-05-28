@@ -88,8 +88,8 @@ export default function EditProjectPage({ params }: EditProjectPageProps) {
           }
         }
         
-        // If not found in localStorage, try to get from Firestore
-        if (!project) {
+        // If not found in localStorage, try to get from Firestore (only in production)
+        if (!project && process.env.NODE_ENV !== 'development') {
           try {
             // Import Firebase modules dynamically
             const { doc, getDoc } = await import('firebase/firestore');
@@ -115,6 +115,8 @@ export default function EditProjectPage({ params }: EditProjectPageProps) {
           } catch (firestoreError) {
             console.error('Error fetching from Firestore:', firestoreError);
           }
+        } else if (!project) {
+          console.log('Using localStorage only in development mode');
         }
         
         if (!project) {
@@ -464,19 +466,28 @@ export default function EditProjectPage({ params }: EditProjectPageProps) {
         }
       }
       
-      // Try to update using firebaseUtils first
-      try {
-        const { updateDocument } = await import('@/lib/firebase/firebaseUtils');
-        const result = await updateDocument('projects', id, updatedProject);
-        
-        console.log('Project updated successfully using updateDocument:', result);
-        
-        // Redirect back to projects page
-        router.push('/admin/projects');
-        return;
-      } catch (firebaseError) {
-        console.error('Error updating project with updateDocument:', firebaseError);
-        // Continue to localStorage fallback
+      // Try to update using firebaseUtils first, but only if we're not in development mode
+      // and only if we're fairly certain the document exists in Firebase
+      if (process.env.NODE_ENV !== 'development' && originalProject?.createdAt) {
+        try {
+          const { updateDocument } = await import('@/lib/firebase/firebaseUtils');
+          const result = await updateDocument('projects', id, updatedProject);
+          
+          console.log('Project updated successfully using updateDocument:', result);
+          
+          // Redirect back to projects page
+          router.push('/admin/projects');
+          return;
+        } catch (firebaseError) {
+          console.error('Error updating project with updateDocument:', firebaseError);
+          // Log the specific error for debugging
+          if (firebaseError instanceof Error) {
+            console.log('Firebase error message:', firebaseError.message);
+          }
+          // Continue to localStorage fallback
+        }
+      } else {
+        console.log('Skipping Firebase update, using localStorage only');
       }
       
       // Fallback to localStorage if updateDocument fails
@@ -499,11 +510,13 @@ export default function EditProjectPage({ params }: EditProjectPageProps) {
           const projectIndex = projects.findIndex(p => p.id === id);
           
           if (projectIndex === -1) {
-            throw new Error('Project not found in localStorage');
+            // If project doesn't exist in localStorage, add it as a new project
+            console.log('Project not found in localStorage, adding as new project');
+            projects.push(updatedProject);
+          } else {
+            // Update existing project
+            projects[projectIndex] = updatedProject;
           }
-          
-          // Update project
-          projects[projectIndex] = updatedProject;
           
           // Save back to localStorage
           localStorage.setItem('localProjects', JSON.stringify(projects));
