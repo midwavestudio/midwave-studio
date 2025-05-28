@@ -335,23 +335,41 @@ export default function ProjectModal({ project, isOpen, onClose }: ProjectModalP
 
   // Determine which image to display
   const getFilteredImageUrls = () => {
-    if (!project || !project.imageUrls || project.imageUrls.length === 0) {
-      console.log('No image URLs found, using thumbnail only');
-      return [project?.thumbnailUrl].filter(Boolean) as string[];
+    if (!project) {
+      console.log('No project found');
+      return [];
     }
     
-    // Log all available images
-    console.log(`Project ${project.title} has ${project.imageUrls.length} images:`);
-    project.imageUrls.forEach((url, index) => {
-      console.log(`Image ${index + 1}: ${url} - Valid: ${isValidImage(url)}`);
-    });
+    // Create an array to collect all unique valid images
+    let allImages: string[] = [];
     
-    // Filter out invalid images but keep valid ones even if they match thumbnail
-    const validImages = project.imageUrls.filter(url => isValidImage(url));
-    console.log(`Found ${validImages.length} valid images`);
+    // Add thumbnail to images if it's valid
+    if (project.thumbnailUrl && isValidImage(project.thumbnailUrl)) {
+      allImages.push(project.thumbnailUrl);
+    }
     
-    // Always return all valid images - don't try to filter out the thumbnail
-    return validImages.length > 0 ? validImages : [project.thumbnailUrl].filter(Boolean) as string[];
+    // Add all other valid images from imageUrls
+    if (project.imageUrls && project.imageUrls.length > 0) {
+      console.log(`Project ${project.title} has ${project.imageUrls.length} images:`);
+      project.imageUrls.forEach((url, index) => {
+        if (isValidImage(url)) {
+          console.log(`Image ${index + 1}: ${url} - Valid: true`);
+          // Only add if not already in the array (avoid duplicating thumbnail)
+          if (!allImages.includes(url)) {
+            allImages.push(url);
+          }
+        } else {
+          console.log(`Image ${index + 1}: ${url} - Valid: false - skipping`);
+        }
+      });
+    } else {
+      console.log('No image URLs found in project.imageUrls');
+    }
+    
+    console.log(`Found ${allImages.length} total valid images`);
+    
+    // If no images at all, return empty array
+    return allImages;
   };
   
   // Get all valid image URLs
@@ -425,8 +443,11 @@ export default function ProjectModal({ project, isOpen, onClose }: ProjectModalP
                   onMouseUp={handleMouseUp}
                   onMouseLeave={handleMouseUp}
                   style={{
-                    maxHeight: '95vh',
-                    maxWidth: '95vw',
+                    height: '100vh',
+                    width: '100vw',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
                     overflow: 'hidden',
                     position: 'relative',
                   }}
@@ -447,7 +468,7 @@ export default function ProjectModal({ project, isOpen, onClose }: ProjectModalP
                     <img
                       src={currentImage}
                       alt={`${project.title} - Expanded View`}
-                      className="max-w-full max-h-[85vh] object-contain"
+                      className="max-w-full object-contain"
                       draggable="false"
                       onLoad={handleImageLoad}
                       onClick={(e) => {
@@ -459,7 +480,8 @@ export default function ProjectModal({ project, isOpen, onClose }: ProjectModalP
                         }
                       }}
                       style={{
-                        maxHeight: imageDimensions.isVertical ? 'calc(100vh - 100px)' : '85vh',
+                        maxHeight: imageDimensions.isVertical ? 'calc(100vh - 40px)' : '95vh',
+                        maxWidth: 'calc(100vw - 40px)',
                         width: 'auto',
                         height: 'auto',
                         objectFit: 'contain',
