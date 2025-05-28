@@ -93,8 +93,31 @@ export const getImageHostingServices = (): { name: string, url: string, descript
 
 /**
  * Get a Land Development project
+ * This is a template that will be updated by the admin interface
  */
 export const getLandDevelopmentProject = (): Project => {
+  // For the Land Development project, we should check localStorage first
+  // before falling back to the default template
+  if (typeof window !== 'undefined') {
+    try {
+      const localProjects = localStorage.getItem('localProjects');
+      if (localProjects) {
+        const projects = JSON.parse(localProjects);
+        const landDevelopment = projects.find((p: any) => 
+          p.id === 'land-development' || p.slug === 'land-development'
+        );
+        
+        if (landDevelopment) {
+          console.log('Found Land Development project in localStorage');
+          return landDevelopment;
+        }
+      }
+    } catch (error) {
+      console.error('Error getting Land Development from localStorage:', error);
+    }
+  }
+  
+  // If not found in localStorage or error occurred, return default template
   return {
     id: 'land-development',
     title: 'Land Development',
@@ -108,13 +131,7 @@ export const getLandDevelopmentProject = (): Project => {
     technologies: ['React', 'Next.js', 'Tailwind CSS'],
     thumbnailUrl: '/images/adhocthumb.png',
     imageUrls: [
-      '/images/adhocthumb.png',
-      '/images/adhocmt.png',
-      '/images/adhocmtsmall.png',
-      '/images/Desktop - 1.jpg',
-      '/images/Group 1199.jpg',
-      '/images/Hero Section.jpg',
-      '/images/HOME (1).jpg'
+      '/images/adhocthumb.png' // Only include one default image
     ],
     url: 'https://example.com/land-development',
     featured: true,
@@ -243,9 +260,9 @@ export const getProjects = async (): Promise<Project[]> => {
       allProjects.push(marketingAgencyWebsite);
     }
     
-    // Make sure Land Development is always included
-    const landDevelopmentProject = getLandDevelopmentProject();
-    if (!allProjects.some(p => p.title === 'Land Development')) {
+    // Make sure Land Development is always included, but don't override if it already exists
+    if (!allProjects.some(p => p.id === 'land-development' || p.slug === 'land-development')) {
+      const landDevelopmentProject = getLandDevelopmentProject();
       allProjects.push(landDevelopmentProject);
     }
     
