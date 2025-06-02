@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { FiPlus, FiGrid, FiImage, FiSettings, FiEye } from 'react-icons/fi';
+import { FiPlus, FiGrid, FiImage, FiSettings, FiEye, FiLayout } from 'react-icons/fi';
 import AdminDashboardLayout from './AdminDashboardLayout';
 
 interface DashboardStat {
@@ -109,6 +109,13 @@ export default function AdminDashboard() {
       color: 'bg-indigo-600',
     },
     {
+      title: 'UI Prototypes',
+      description: 'Browse modern UI designs for social media marketing',
+      icon: <FiLayout size={24} />,
+      path: '/admin/ui-prototypes',
+      color: 'bg-purple-600',
+    },
+    {
       title: 'Settings',
       description: 'Configure website settings and preferences',
       icon: <FiSettings size={24} />,
@@ -155,7 +162,7 @@ export default function AdminDashboard() {
         {/* Quick Actions */}
         <div>
           <h2 className="text-xl font-semibold text-white mb-4">Quick Actions</h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             {quickActions.map((action, index) => (
               <Link
                 key={index}

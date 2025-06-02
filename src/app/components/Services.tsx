@@ -61,7 +61,7 @@ const Services = () => {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ duration: 0.5, delay: index * 0.1 }}
-              className="bg-[#0f0f13] p-8 rounded-lg border border-[#b85a00]/30 shadow-[5px_5px_15px_rgba(0,0,0,0.2),-5px_-5px_15px_rgba(30,30,35,0.2)] hover:shadow-[8px_8px_20px_rgba(0,0,0,0.3),-8px_-8px_20px_rgba(30,30,35,0.3)] hover:border-[#b85a00]/50 transition-all duration-300"
+              className="bg-[#0f0f13] p-8 rounded-lg border border-[#b85a00]/30 shadow-[0_8px_32px_rgba(184,90,0,0.15)] hover:shadow-[0_12px_48px_rgba(184,90,0,0.25)] hover:border-[#b85a00]/50 transition-all duration-300"
               whileHover={{
                 y: -5,
                 transition: { duration: 0.2 }

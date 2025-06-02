@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { FiHome, FiGrid, FiUsers, FiSettings, FiPlusCircle, FiLogOut, FiMenu, FiX } from 'react-icons/fi';
+import { FiHome, FiGrid, FiUsers, FiSettings, FiPlusCircle, FiLogOut, FiMenu, FiX, FiLayout } from 'react-icons/fi';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface SidebarNavItem {
@@ -52,6 +52,11 @@ export default function AdminDashboardLayout({
       title: 'New Project',
       path: '/admin/projects/new',
       icon: <FiPlusCircle size={20} />,
+    },
+    {
+      title: 'UI Prototypes',
+      path: '/admin/ui-prototypes',
+      icon: <FiLayout size={20} />,
     },
     {
       title: 'Settings',
@@ -109,7 +114,7 @@ export default function AdminDashboardLayout({
                     <Link
                       href={item.path}
                       className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
-                        pathname === item.path
+                        pathname === item.path || pathname?.startsWith(item.path + '/')
                           ? 'bg-[#b85a00] text-white'
                           : 'text-gray-300 hover:bg-gray-700'
                       }`}

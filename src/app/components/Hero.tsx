@@ -105,7 +105,16 @@ const Hero = () => {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8, delay: 0.8 }}
           >
-            {/* "View Our Work" button temporarily hidden */}
+            {/* "See Work" button */}
+            <motion.div
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              className="w-full sm:w-auto"
+            >
+              <Link href="/projects" className="inline-flex items-center justify-center w-full sm:w-auto bg-transparent border border-white text-white px-6 md:px-7 py-3 md:py-4 rounded-lg hover:bg-white/10 transition-all duration-300 text-base md:text-lg font-medium">
+                See Work
+              </Link>
+            </motion.div>
             
             <motion.div
               whileHover={{ scale: 1.05 }}

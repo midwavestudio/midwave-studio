@@ -7,7 +7,12 @@ const CallToAction = () => {
   return (
     <section className="py-24 relative z-10">
       <div className="container mx-auto px-6">
-        <div className="max-w-5xl mx-auto bg-gradient-to-r from-[#1a1a1f] to-[#0f0f13] rounded-2xl p-8 md:p-12 shadow-xl border border-[#b85a00]/20">
+        <div className="max-w-5xl mx-auto bg-white/5 backdrop-blur-xl rounded-2xl p-8 md:p-12 shadow-2xl border border-white/10 relative overflow-hidden">
+          {/* Glassmorphism background elements */}
+          <div className="absolute inset-0 bg-gradient-to-br from-[#b85a00]/10 via-transparent to-[#b85a00]/5"></div>
+          <div className="absolute top-0 left-0 w-32 h-32 bg-[#b85a00]/20 rounded-full blur-3xl"></div>
+          <div className="absolute bottom-0 right-0 w-40 h-40 bg-[#b85a00]/15 rounded-full blur-3xl"></div>
+          <div className="relative z-10">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
@@ -36,6 +41,7 @@ const CallToAction = () => {
               </Link>
             </div>
           </motion.div>
+          </div>
         </div>
       </div>
     </section>
