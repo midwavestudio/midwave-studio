@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
-import { Project, getFeaturedProjects } from '@/lib/firebase/projectUtils';
+import { Project, getFeaturedProjects, initializeSampleProjects } from '@/lib/firebase/projectUtils';
 import ProjectCard from '@/components/projects/ProjectCard';
 import ProjectModal from '@/components/projects/ProjectModal';
 
@@ -41,6 +41,9 @@ const FeaturedProjects = () => {
       setErrorMessage(null);
       
       console.log('Fetching featured projects...');
+      
+      // Initialize sample projects if none exist
+      await initializeSampleProjects();
       
       // Only include actual featured projects, no test projects
       const featuredProjects = await getFeaturedProjects(false);
@@ -92,7 +95,7 @@ const FeaturedProjects = () => {
         >
           <h2 className="text-4xl sm:text-5xl md:text-6xl font-extrabold text-white mb-6">Featured Projects</h2>
           <p className="text-lg md:text-xl text-gray-400 max-w-2xl mx-auto font-medium">
-            Explore our showcase of exceptional digital experiences crafted with precision and purpose.
+            Explore our recent work crafted with precision and purpose.
           </p>
         </motion.div>
 

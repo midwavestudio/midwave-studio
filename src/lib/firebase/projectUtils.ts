@@ -2,6 +2,7 @@
 
 import { collection, getDocs, doc, getDoc, query, where, orderBy } from 'firebase/firestore';
 import { db } from './firebase';
+import { sampleProjects } from './sampleData';
 
 // Remove STORAGE_FOLDERS constant
 // Instead, create a constant for placeholder images
@@ -192,6 +193,22 @@ export const getProjects = async (): Promise<Project[]> => {
         } catch (error) {
           console.error('Error parsing localStorage projects:', error);
         }
+      } else {
+        // If no projects in localStorage, initialize with sample projects
+        console.log('No projects found in localStorage, initializing with sample projects...');
+        await initializeSampleProjects();
+        
+        // Try to get projects again after initialization
+        const localProjectsAfterInit = localStorage.getItem('localProjects');
+        if (localProjectsAfterInit) {
+          try {
+            const parsedProjects = JSON.parse(localProjectsAfterInit) as Project[];
+            console.log('Found projects after initialization:', parsedProjects.length);
+            allProjects = [...parsedProjects];
+          } catch (error) {
+            console.error('Error parsing projects after initialization:', error);
+          }
+        }
       }
     }
     
@@ -340,19 +357,10 @@ export const getFeaturedProjects = async (includeTestProjects: boolean = false):
     console.log(`Retrieved ${allProjects.length} total projects`);
     
     // Filter for featured projects with robust type checking
-    // And only keep Marketing Agency Website
     const featuredProjects = allProjects.filter(project => {
       // Skip test projects unless specifically included
       if (!includeTestProjects && project.title?.toLowerCase().includes('test')) {
         console.log(`Skipping test project: ${project.title}`);
-        return false;
-      }
-      
-      // Skip mock projects except for Marketing Agency Website
-      if (project.title !== 'Marketing Agency Website' && 
-          (project.title?.toLowerCase().includes('e-commerce') || 
-           project.title?.toLowerCase().includes('mobile app'))) {
-        console.log(`Skipping mock project: ${project.title}`);
         return false;
       }
       
@@ -709,5 +717,44 @@ export const clearAllProjects = async (): Promise<{ success: boolean, message: s
   } catch (error) {
     console.error('Error clearing projects:', error);
     return { success: false, message: `Failed to clear projects: ${error.message}` };
+  }
+};
+
+/**
+ * Initialize localStorage with sample projects if no projects exist
+ * This ensures the admin panel shows the featured projects from the website
+ */
+export const initializeSampleProjects = async (): Promise<{ success: boolean, message: string }> => {
+  try {
+    if (typeof window === 'undefined') {
+      return { success: false, message: 'Cannot initialize projects on server side' };
+    }
+    
+    // Check if projects already exist in localStorage
+    const existingProjects = localStorage.getItem('localProjects');
+    if (existingProjects) {
+      const projects = JSON.parse(existingProjects);
+      if (projects.length > 0) {
+        console.log('Projects already exist in localStorage, skipping initialization');
+        return { success: true, message: 'Projects already initialized' };
+      }
+    }
+    
+    console.log('Initializing localStorage with sample projects...');
+    
+    // Add sample projects to localStorage
+    const projectsToAdd = sampleProjects.map(project => ({
+      ...project,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    }));
+    
+    localStorage.setItem('localProjects', JSON.stringify(projectsToAdd));
+    
+    console.log(`Initialized ${projectsToAdd.length} sample projects in localStorage`);
+    return { success: true, message: `Initialized ${projectsToAdd.length} sample projects` };
+  } catch (error) {
+    console.error('Error initializing sample projects:', error);
+    return { success: false, message: 'Failed to initialize sample projects' };
   }
 }; 

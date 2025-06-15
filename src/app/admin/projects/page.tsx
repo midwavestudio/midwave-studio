@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { FiEdit2, FiEye, FiTrash2, FiPlus, FiSearch, FiStar, FiFilter } from 'react-icons/fi';
 import AdminDashboardLayout from '../AdminDashboardLayout';
+import { initializeSampleProjects } from '@/lib/firebase/projectUtils';
 
 interface Project {
   id: string;
@@ -33,10 +34,13 @@ export default function ProjectsListPage() {
   
   // Load projects from localStorage on component mount
   useEffect(() => {
-    const fetchProjects = () => {
+    const fetchProjects = async () => {
       setLoading(true);
       
       try {
+        // Initialize sample projects if none exist
+        await initializeSampleProjects();
+        
         // Get projects from localStorage
         if (typeof window !== 'undefined') {
           const localProjects = localStorage.getItem('localProjects');
