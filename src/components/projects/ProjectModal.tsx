@@ -148,7 +148,7 @@ export default function ProjectModal({ project, isOpen, onClose }: ProjectModalP
       let zoomIncrement;
       if (imageDimensions.isVertical) {
         // Larger increments for vertical images to make text readable faster
-        zoomIncrement = prev < 2 ? 0.75 : prev < 4 ? 0.5 : 0.3;
+        zoomIncrement = prev < 2 ? 1.0 : prev < 4 ? 0.75 : prev < 8 ? 0.5 : 0.3;
       } else {
         // Standard increments for horizontal images
         zoomIncrement = prev < 2 ? 0.5 : prev < 4 ? 0.3 : 0.2;
@@ -172,7 +172,7 @@ export default function ProjectModal({ project, isOpen, onClose }: ProjectModalP
       // Use consistent zoom decrements
       let zoomDecrement;
       if (imageDimensions.isVertical) {
-        zoomDecrement = prev > 4 ? 0.3 : prev > 2 ? 0.5 : 0.75;
+        zoomDecrement = prev > 8 ? 0.3 : prev > 4 ? 0.5 : prev > 2 ? 0.75 : 1.0;
       } else {
         zoomDecrement = prev > 4 ? 0.2 : prev > 2 ? 0.3 : 0.5;
       }
@@ -225,67 +225,24 @@ export default function ProjectModal({ project, isOpen, onClose }: ProjectModalP
     setIsDragging(false);
   };
 
-  // Handle wheel event for zooming with mouse wheel
+  // Handle wheel event for panning only (no zooming)
   const handleWheel = (e: React.WheelEvent) => {
     if (expandedImage) {
       e.preventDefault();
       e.stopPropagation();
       
-      // Use a smaller zoom increment for smoother zooming at high levels
-      // And larger increments when starting to zoom for better UX
-      const baseZoomDelta = 0.1;
-      const zoomDelta = zoomLevel < 2 ? baseZoomDelta * 2 : baseZoomDelta;
-      
-      // Get the mouse position relative to the image
-      const rect = expandedImageRef.current?.getBoundingClientRect();
-      if (!rect) return;
-      
-      // Calculate mouse position relative to the center of the image
-      const mouseX = e.clientX - (rect.left + rect.width / 2);
-      const mouseY = e.clientY - (rect.top + rect.height / 2);
-      
-      // Current zoom level
-      const currentZoom = zoomLevel;
-      
-      // Calculate new zoom level with adaptive zoom speed
-      let newZoom = currentZoom;
-      if (e.deltaY < 0) {
-        // Zoom in - use incremental zoom for better control
-        let zoomIncrement = imageDimensions.isVertical ? 0.4 : 0.25;
-        if (currentZoom > 4) zoomIncrement = 0.2; // Slower zoom at high levels
-        newZoom = Math.min(currentZoom + zoomIncrement, 12);
-      } else {
-        // Zoom out - use incremental zoom for better control
-        let zoomDecrement = imageDimensions.isVertical ? 0.4 : 0.25;
-        if (currentZoom > 4) zoomDecrement = 0.2; // Slower zoom at high levels
-        newZoom = Math.max(currentZoom - zoomDecrement, 1);
-      }
-      
-      // Round to 2 decimal places for stability
-      newZoom = Math.round(newZoom * 100) / 100;
-      
-      // Only proceed if zoom actually changed
-      if (newZoom !== currentZoom) {
-        // If returning to zoom level 1, reset pan position
-        if (newZoom === 1) {
-          setPanPosition({ x: 0, y: 0 });
-        } 
-        // Otherwise, adjust pan to keep mouse position relatively fixed
-        else if (currentZoom > 1) {
-          // Calculate how much the pan should change based on mouse position and zoom change
-          const zoomRatio = newZoom / currentZoom;
-          
-          setPanPosition(prev => ({
-            x: mouseX + (prev.x - mouseX) * zoomRatio,
-            y: mouseY + (prev.y - mouseY) * zoomRatio
-          }));
-        }
+      // Only allow panning when zoomed in - no mouse wheel zooming
+      if (zoomLevel > 1) {
+        const panSpeed = 2;
+        const deltaY = e.deltaY * panSpeed;
+        const deltaX = e.deltaX * panSpeed;
         
-        // Update zoom level with requestAnimationFrame for smoother rendering
-        requestAnimationFrame(() => {
-          setZoomLevel(newZoom);
-        });
+        setPanPosition(prev => ({
+          x: prev.x - deltaX,
+          y: prev.y - deltaY
+        }));
       }
+      // When not zoomed in, wheel does nothing - zoom only via +/- buttons
     }
   };
 
@@ -381,12 +338,18 @@ export default function ProjectModal({ project, isOpen, onClose }: ProjectModalP
     // For vertical images, start with a better initial zoom for readability
     if (isVertical && expandedImage) {
       // Calculate optimal zoom for text readability
-      const viewportHeight = window.innerHeight * 0.9;
+      const viewportHeight = window.innerHeight * 0.95;
+      const viewportWidth = window.innerWidth * 0.95;
       const imageHeight = img.naturalHeight;
+      const imageWidth = img.naturalWidth;
       
       // If image is very tall and likely contains text, start with higher zoom
-      if (imageHeight > viewportHeight * 2) {
-        const optimalZoom = Math.min(2.5, (viewportHeight * 1.5) / imageHeight);
+      if (imageHeight > viewportHeight * 1.5) {
+        // Calculate zoom to fit text readably
+        const heightRatio = viewportHeight / imageHeight;
+        const widthRatio = viewportWidth / imageWidth;
+        const optimalZoom = Math.min(3.0, Math.max(heightRatio * 2, widthRatio * 2, 1.5));
+        
         if (optimalZoom > 1) {
           setZoomLevel(optimalZoom);
         }
@@ -588,6 +551,9 @@ export default function ProjectModal({ project, isOpen, onClose }: ProjectModalP
                       <div className="bg-black/40 backdrop-blur-sm rounded-lg p-6">
                         <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-white"></div>
                         <p className="text-white mt-4 text-center">Loading high resolution image...</p>
+                        {imageDimensions.isVertical && (
+                          <p className="text-white/80 mt-2 text-sm text-center">Optimizing for text readability</p>
+                        )}
                       </div>
                     </div>
                   )}
@@ -622,8 +588,8 @@ export default function ProjectModal({ project, isOpen, onClose }: ProjectModalP
                       }}
                       style={{
                         // Allow full viewport usage for better zoom quality
-                        maxHeight: imageDimensions.isVertical ? '95vh' : '90vh',
-                        maxWidth: imageDimensions.isVertical ? '95vw' : '90vw',
+                        maxHeight: imageDimensions.isVertical ? '98vh' : '95vh',
+                        maxWidth: imageDimensions.isVertical ? '98vw' : '95vw',
                         width: 'auto',
                         height: 'auto',
                         objectFit: 'contain',
@@ -633,21 +599,22 @@ export default function ProjectModal({ project, isOpen, onClose }: ProjectModalP
                         willChange: 'transform',
                         backfaceVisibility: 'hidden',
                         // Enhanced contrast and sharpness for better text readability
-                        filter: zoomLevel > 1 ? 'contrast(1.05) brightness(1.02) saturate(1.02)' : 'contrast(1.02)',
+                        filter: zoomLevel > 1 ? 'contrast(1.08) brightness(1.03) saturate(1.03)' : 'contrast(1.03)',
                         boxShadow: '0 0 20px rgba(0,0,0,0.5)',
                         // Better minimum sizes for vertical images
-                        minHeight: imageDimensions.isVertical ? '80vh' : 'auto',
-                        minWidth: imageDimensions.isVertical ? 'auto' : '60vw',
+                        minHeight: imageDimensions.isVertical ? '85vh' : 'auto',
+                        minWidth: imageDimensions.isVertical ? 'auto' : '70vw',
                         // Ensure crisp edges for text readability
                         WebkitFontSmoothing: 'antialiased',
-                        MozOsxFontSmoothing: 'grayscale'
+                        MozOsxFontSmoothing: 'grayscale',
+                        // Additional quality improvements
                       }}
                     />
                   </div>
 
                   {/* Zoom controls */}
                   <div 
-                    className="zoom-controls fixed bottom-4 left-1/2 transform -translate-x-1/2 flex items-center space-x-4 bg-black/70 rounded-full p-2 z-10"
+                    className="zoom-controls fixed bottom-4 left-1/2 transform -translate-x-1/2 flex items-center space-x-4 bg-black/80 backdrop-blur-sm rounded-full p-3 z-10 shadow-lg border border-white/10"
                     onClick={(e) => e.stopPropagation()}
                   >
                     <button
@@ -655,7 +622,7 @@ export default function ProjectModal({ project, isOpen, onClose }: ProjectModalP
                         e.stopPropagation();
                         zoomOut();
                       }}
-                      className="text-white p-2 rounded-full hover:bg-white/20 transition-colors"
+                      className="text-white p-2 rounded-full hover:bg-white/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                       disabled={zoomLevel <= 1}
                       aria-label="Zoom out"
                     >
@@ -669,7 +636,7 @@ export default function ProjectModal({ project, isOpen, onClose }: ProjectModalP
                         e.stopPropagation();
                         zoomIn();
                       }}
-                      className="text-white p-2 rounded-full hover:bg-white/20 transition-colors"
+                      className="text-white p-2 rounded-full hover:bg-white/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                       disabled={zoomLevel >= 16}
                       aria-label="Zoom in"
                     >
@@ -682,7 +649,7 @@ export default function ProjectModal({ project, isOpen, onClose }: ProjectModalP
                         e.stopPropagation();
                         resetZoom();
                       }}
-                      className="text-white p-2 rounded-full hover:bg-white/20 transition-colors"
+                      className="text-white p-2 rounded-full hover:bg-white/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                       disabled={zoomLevel === 1}
                       aria-label="Reset zoom"
                     >
@@ -712,12 +679,13 @@ export default function ProjectModal({ project, isOpen, onClose }: ProjectModalP
                     onClick={(e) => e.stopPropagation()}
                   >
                     <p className="mb-1">• Click image to zoom in</p>
-                    <p className="mb-1">• Use mouse wheel to zoom in/out</p>
+                    <p className="mb-1">• Use +/- buttons or keys to zoom</p>
+                    <p className="mb-1">• Mouse wheel scrolls when zoomed in</p>
                     <p className="mb-1">• Drag to pan when zoomed in</p>
                     {imageDimensions.isVertical && (
                       <p className="mb-1 text-yellow-300">• Zoom in more for better text readability</p>
                     )}
-                    <p>• Click outside image to close</p>
+                    <p>• Press Escape or click outside to close</p>
                   </div>
                   
                   {/* Click-to-close indicator - display briefly when expanded view first opens */}

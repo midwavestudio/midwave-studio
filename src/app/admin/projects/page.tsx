@@ -157,13 +157,21 @@ export default function ProjectsListPage() {
             </p>
           </div>
           
-          <Link
-            href="/admin/projects/new"
-            className="flex items-center gap-2 px-4 py-2 bg-[#b85a00] hover:bg-[#a04d00] text-white rounded-md transition-colors"
-          >
-            <FiPlus size={16} />
-            <span>New Project</span>
-          </Link>
+          <div className="flex gap-3">
+            <Link
+              href="/admin/projects/reset-projects"
+              className="flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-md transition-colors"
+            >
+              <span>Reset Projects</span>
+            </Link>
+            <Link
+              href="/admin/projects/new"
+              className="flex items-center gap-2 px-4 py-2 bg-[#b85a00] hover:bg-[#a04d00] text-white rounded-md transition-colors"
+            >
+              <FiPlus size={16} />
+              <span>New Project</span>
+            </Link>
+          </div>
         </div>
         
         {/* Filters & Search */}

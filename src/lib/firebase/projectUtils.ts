@@ -271,17 +271,8 @@ export const getProjects = async (): Promise<Project[]> => {
       console.error('Error fetching from Firestore:', firestoreError);
     }
     
-    // Make sure Marketing Agency Website is always included
-    const marketingAgencyWebsite = getMarketingAgencyWebsite();
-    if (!allProjects.some(p => p.title === 'Marketing Agency Website')) {
-      allProjects.push(marketingAgencyWebsite);
-    }
-    
-    // Make sure Land Development is always included, but don't override if it already exists
-    if (!allProjects.some(p => p.id === 'land-development' || p.slug === 'land-development')) {
-      const landDevelopmentProject = getLandDevelopmentProject();
-      allProjects.push(landDevelopmentProject);
-    }
+    // Note: Marketing Agency Website and Land Development projects are now managed through the admin panel
+    // They are no longer automatically added here
     
     // Return the projects we found, even if the array is empty
     console.log('Returning total projects:', allProjects.length);
@@ -589,9 +580,9 @@ export const base64ToBlob = (base64: string): Blob => {
  */
 export const compressImage = (
   file: File,
-  maxWidth: number = 3200,
-  maxHeight: number = 2400,
-  quality: number = 0.96
+  maxWidth: number = 4800,
+  maxHeight: number = 3600,
+  quality: number = 0.98
 ): Promise<string> => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -619,7 +610,7 @@ export const compressImage = (
         }
         
         // Ensure image is never smaller than minimum dimensions for readability
-        const minDimension = 1200;
+        const minDimension = 1600;
         if (width < minDimension && height < minDimension) {
           // Scale up small images to be at least minDimension on smallest side
           if (width <= height) {
@@ -641,8 +632,15 @@ export const compressImage = (
           ctx.imageSmoothingEnabled = true;
           ctx.imageSmoothingQuality = 'high';
           
-          // Additional quality improvements for better text rendering
-          ctx.textRenderingOptimization = 'optimizeQuality';
+          // Additional quality improvements for better rendering
+          ctx.globalCompositeOperation = 'source-over';
+          
+          // Only add white background for transparent images
+          if (file.type === 'image/png') {
+            ctx.fillStyle = 'white';
+            ctx.fillRect(0, 0, width, height);
+          }
+          
           ctx.drawImage(img, 0, 0, width, height);
         }
         
@@ -652,7 +650,7 @@ export const compressImage = (
         
         // Use PNG for better quality with text, JPEG for photos
         const mimeType = (file.type === 'image/png' || hasText) ? 'image/png' : 'image/jpeg';
-        const adjustedQuality = mimeType === 'image/png' ? 1.0 : Math.max(quality, 0.95);
+        const adjustedQuality = mimeType === 'image/png' ? 1.0 : Math.max(quality, 0.98);
         
         const result = canvas.toDataURL(mimeType, adjustedQuality);
         resolve(result);
@@ -765,5 +763,108 @@ export const initializeSampleProjects = async (): Promise<{ success: boolean, me
   } catch (error) {
     console.error('Error initializing sample projects:', error);
     return { success: false, message: 'Failed to initialize sample projects' };
+  }
+};
+
+/**
+ * Remove specific projects by ID or slug
+ * @param projectIdentifiers Array of project IDs or slugs to remove
+ * @returns Promise resolving to success status and message
+ */
+export const removeProjects = async (projectIdentifiers: string[]): Promise<{ success: boolean, message: string }> => {
+  try {
+    if (typeof window === 'undefined') {
+      return { success: false, message: 'Cannot remove projects on server side' };
+    }
+
+    // Get existing projects from localStorage
+    const localProjects = localStorage.getItem('localProjects');
+    if (!localProjects) {
+      return { success: true, message: 'No projects found to remove' };
+    }
+
+    const projects = JSON.parse(localProjects) as Project[];
+    const initialCount = projects.length;
+
+    // Filter out projects that match the identifiers
+    const filteredProjects = projects.filter(project => 
+      !projectIdentifiers.includes(project.id) && 
+      !projectIdentifiers.includes(project.slug) &&
+      !projectIdentifiers.includes(project.title)
+    );
+
+    const removedCount = initialCount - filteredProjects.length;
+
+    // Save the filtered projects back to localStorage
+    localStorage.setItem('localProjects', JSON.stringify(filteredProjects));
+
+    console.log(`Removed ${removedCount} projects from localStorage`);
+    return { 
+      success: true, 
+      message: `Successfully removed ${removedCount} project(s)` 
+    };
+  } catch (error) {
+    console.error('Error removing projects:', error);
+    return { success: false, message: `Failed to remove projects: ${error.message}` };
+  }
+};
+
+/**
+ * Add a new project to localStorage
+ * @param projectData Project data to add
+ * @returns Promise resolving to success status and message
+ */
+export const addProject = async (projectData: Omit<Project, 'id'>): Promise<{ success: boolean, message: string, project?: Project }> => {
+  try {
+    if (typeof window === 'undefined') {
+      return { success: false, message: 'Cannot add project on server side' };
+    }
+
+    // Get existing projects from localStorage
+    const localProjects = localStorage.getItem('localProjects');
+    const projects = localProjects ? JSON.parse(localProjects) as Project[] : [];
+
+    // Check if a project with the same title or slug already exists
+    const existingProject = projects.find(p => 
+      p.title === projectData.title || 
+      (projectData.slug && p.slug === projectData.slug)
+    );
+
+    if (existingProject) {
+      console.log(`Project with title "${projectData.title}" already exists, skipping...`);
+      return { 
+        success: true, 
+        message: `Project "${projectData.title}" already exists`,
+        project: existingProject
+      };
+    }
+
+    // Generate a unique ID
+    const timestamp = Date.now();
+    const id = `project-${timestamp}`;
+
+    // Create the complete project object
+    const newProject: Project = {
+      id,
+      ...projectData,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+
+    // Add the new project
+    projects.push(newProject);
+
+    // Save back to localStorage
+    localStorage.setItem('localProjects', JSON.stringify(projects));
+
+    console.log(`Added new project: ${newProject.title} with ID: ${id}`);
+    return { 
+      success: true, 
+      message: `Successfully added project: ${newProject.title}`,
+      project: newProject
+    };
+  } catch (error) {
+    console.error('Error adding project:', error);
+    return { success: false, message: `Failed to add project: ${error.message}` };
   }
 }; 
