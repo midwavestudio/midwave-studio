@@ -580,7 +580,7 @@ export const base64ToBlob = (base64: string): Blob => {
 };
 
 /**
- * Compress an image file
+ * Compress an image file with optimized settings for different image types
  * @param file File to compress
  * @param maxWidth Maximum width
  * @param maxHeight Maximum height
@@ -589,9 +589,9 @@ export const base64ToBlob = (base64: string): Blob => {
  */
 export const compressImage = (
   file: File,
-  maxWidth: number = 2400,
-  maxHeight: number = 1600,
-  quality: number = 0.95
+  maxWidth: number = 3200,
+  maxHeight: number = 2400,
+  quality: number = 0.96
 ): Promise<string> => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -618,8 +618,8 @@ export const compressImage = (
           }
         }
         
-        // Ensure image is never smaller than minimum dimensions
-        const minDimension = 800;
+        // Ensure image is never smaller than minimum dimensions for readability
+        const minDimension = 1200;
         if (width < minDimension && height < minDimension) {
           // Scale up small images to be at least minDimension on smallest side
           if (width <= height) {
@@ -636,16 +636,25 @@ export const compressImage = (
         
         const ctx = canvas.getContext('2d');
         
-        // Improved image quality settings
+        // Optimized image quality settings for better text readability
         if (ctx) {
           ctx.imageSmoothingEnabled = true;
           ctx.imageSmoothingQuality = 'high';
+          
+          // Additional quality improvements for better text rendering
+          ctx.textRenderingOptimization = 'optimizeQuality';
           ctx.drawImage(img, 0, 0, width, height);
         }
         
-        // Use image/jpeg for photos and image/png for graphics with transparency
-        const mimeType = file.type === 'image/png' ? 'image/png' : 'image/jpeg';
-        const result = canvas.toDataURL(mimeType, quality);
+        // Use image/png for better quality when possible, especially for images with text
+        const isVertical = img.height > img.width;
+        const hasText = isVertical || file.name.toLowerCase().includes('text') || file.name.toLowerCase().includes('document');
+        
+        // Use PNG for better quality with text, JPEG for photos
+        const mimeType = (file.type === 'image/png' || hasText) ? 'image/png' : 'image/jpeg';
+        const adjustedQuality = mimeType === 'image/png' ? 1.0 : Math.max(quality, 0.95);
+        
+        const result = canvas.toDataURL(mimeType, adjustedQuality);
         resolve(result);
       };
       

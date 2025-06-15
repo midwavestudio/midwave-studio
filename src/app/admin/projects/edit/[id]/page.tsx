@@ -258,8 +258,8 @@ export default function EditProjectPage({ params }: EditProjectPageProps) {
     if (!file) return;
     
     try {
-      // Handle image compression
-      const base64Image = await compressImage(file, 800, 600, 0.8);
+      // Handle image compression with higher quality for thumbnails
+      const base64Image = await compressImage(file, 1600, 1200, 0.92);
       setThumbnailPreview(base64Image);
       setFormData(prev => prev ? { ...prev, thumbnailUrl: base64Image } : null);
     } catch (error) {
@@ -277,7 +277,7 @@ export default function EditProjectPage({ params }: EditProjectPageProps) {
     
     try {
       const newImagePromises = Array.from(files).map(file => 
-        compressImage(file, 1200, 800, 0.8)
+        compressImage(file, 2400, 1800, 0.95)
       );
       
       const newImages = await Promise.all(newImagePromises);

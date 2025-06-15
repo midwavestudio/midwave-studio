@@ -148,13 +148,13 @@ export default function ProjectModal({ project, isOpen, onClose }: ProjectModalP
       let zoomIncrement;
       if (imageDimensions.isVertical) {
         // Larger increments for vertical images to make text readable faster
-        zoomIncrement = prev < 2 ? 0.5 : 0.3;
+        zoomIncrement = prev < 2 ? 0.75 : prev < 4 ? 0.5 : 0.3;
       } else {
         // Standard increments for horizontal images
-        zoomIncrement = prev < 2 ? 0.3 : 0.2;
+        zoomIncrement = prev < 2 ? 0.5 : prev < 4 ? 0.3 : 0.2;
       }
       
-      const newZoom = Math.min(prev + zoomIncrement, 12); // Increased max zoom for better quality
+      const newZoom = Math.min(prev + zoomIncrement, 16); // Increased max zoom for better text readability
       // Round to 2 decimal places for stability
       const roundedZoom = Math.round(newZoom * 100) / 100;
       
@@ -172,9 +172,9 @@ export default function ProjectModal({ project, isOpen, onClose }: ProjectModalP
       // Use consistent zoom decrements
       let zoomDecrement;
       if (imageDimensions.isVertical) {
-        zoomDecrement = prev > 2 ? 0.3 : 0.5;
+        zoomDecrement = prev > 4 ? 0.3 : prev > 2 ? 0.5 : 0.75;
       } else {
-        zoomDecrement = prev > 2 ? 0.2 : 0.3;
+        zoomDecrement = prev > 4 ? 0.2 : prev > 2 ? 0.3 : 0.5;
       }
       
       const newZoom = Math.max(prev - zoomDecrement, 1);
@@ -358,12 +358,14 @@ export default function ProjectModal({ project, isOpen, onClose }: ProjectModalP
     const aspectRatio = img.naturalWidth / img.naturalHeight;
     
     // Determine if this is a high-resolution image
-    const isHighRes = img.naturalWidth > 2000 || img.naturalHeight > 2000;
+    const isHighRes = img.naturalWidth > 1600 || img.naturalHeight > 1200;
     
     // Set high quality mode for high-resolution images
     if (isHighRes) {
       setHighQualityMode(true);
+      // Use optimized rendering for high-res images
       img.style.imageRendering = 'crisp-edges';
+      img.style.imageRendering = '-webkit-optimize-contrast';
     }
     
     setImageDimensions({
@@ -376,11 +378,18 @@ export default function ProjectModal({ project, isOpen, onClose }: ProjectModalP
     setIsLoading(false);
     setExpandedImageLoading(false);
     
-    // If the image is very tall, adjust the zoom level to fit it better
-    if (isVertical && img.naturalHeight > window.innerHeight * 0.9) {
-      const optimalZoom = (window.innerHeight * 0.9) / img.naturalHeight;
-      if (optimalZoom < 1) {
-        setZoomLevel(1); // Start at 1x zoom but allow user to see the context
+    // For vertical images, start with a better initial zoom for readability
+    if (isVertical && expandedImage) {
+      // Calculate optimal zoom for text readability
+      const viewportHeight = window.innerHeight * 0.9;
+      const imageHeight = img.naturalHeight;
+      
+      // If image is very tall and likely contains text, start with higher zoom
+      if (imageHeight > viewportHeight * 2) {
+        const optimalZoom = Math.min(2.5, (viewportHeight * 1.5) / imageHeight);
+        if (optimalZoom > 1) {
+          setZoomLevel(optimalZoom);
+        }
       }
     }
   };
@@ -613,21 +622,25 @@ export default function ProjectModal({ project, isOpen, onClose }: ProjectModalP
                       }}
                       style={{
                         // Allow full viewport usage for better zoom quality
-                        maxHeight: '90vh',
-                        maxWidth: '90vw',
+                        maxHeight: imageDimensions.isVertical ? '95vh' : '90vh',
+                        maxWidth: imageDimensions.isVertical ? '95vw' : '90vw',
                         width: 'auto',
                         height: 'auto',
                         objectFit: 'contain',
                         display: expandedImageLoading ? 'none' : 'block',
-                        // Always use crisp rendering for better quality when zoomed
+                        // Use high-quality rendering for all zoom levels
                         imageRendering: zoomLevel > 1 ? 'crisp-edges' : 'auto',
                         willChange: 'transform',
                         backfaceVisibility: 'hidden',
-                        filter: 'contrast(1.03)', // Slightly enhance contrast for better readability
+                        // Enhanced contrast and sharpness for better text readability
+                        filter: zoomLevel > 1 ? 'contrast(1.05) brightness(1.02) saturate(1.02)' : 'contrast(1.02)',
                         boxShadow: '0 0 20px rgba(0,0,0,0.5)',
-                        // Ensure minimum size for vertical images to maintain readability
-                        minHeight: imageDimensions.isVertical ? '60vh' : 'auto',
-                        minWidth: imageDimensions.isVertical ? 'auto' : '60vw'
+                        // Better minimum sizes for vertical images
+                        minHeight: imageDimensions.isVertical ? '80vh' : 'auto',
+                        minWidth: imageDimensions.isVertical ? 'auto' : '60vw',
+                        // Ensure crisp edges for text readability
+                        WebkitFontSmoothing: 'antialiased',
+                        MozOsxFontSmoothing: 'grayscale'
                       }}
                     />
                   </div>
@@ -657,7 +670,7 @@ export default function ProjectModal({ project, isOpen, onClose }: ProjectModalP
                         zoomIn();
                       }}
                       className="text-white p-2 rounded-full hover:bg-white/20 transition-colors"
-                      disabled={zoomLevel >= 12}
+                      disabled={zoomLevel >= 16}
                       aria-label="Zoom in"
                     >
                       <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
@@ -701,6 +714,9 @@ export default function ProjectModal({ project, isOpen, onClose }: ProjectModalP
                     <p className="mb-1">• Click image to zoom in</p>
                     <p className="mb-1">• Use mouse wheel to zoom in/out</p>
                     <p className="mb-1">• Drag to pan when zoomed in</p>
+                    {imageDimensions.isVertical && (
+                      <p className="mb-1 text-yellow-300">• Zoom in more for better text readability</p>
+                    )}
                     <p>• Click outside image to close</p>
                   </div>
                   
