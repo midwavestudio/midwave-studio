@@ -572,6 +572,7 @@ export const base64ToBlob = (base64: string): Blob => {
 
 /**
  * Compress an image file with optimized settings for different image types
+ * Updated with more aggressive compression to prevent localStorage quota issues
  * @param file File to compress
  * @param maxWidth Maximum width
  * @param maxHeight Maximum height
@@ -580,9 +581,9 @@ export const base64ToBlob = (base64: string): Blob => {
  */
 export const compressImage = (
   file: File,
-  maxWidth: number = 4800,
-  maxHeight: number = 3600,
-  quality: number = 0.98
+  maxWidth: number = 1800, // Reduced from 4800
+  maxHeight: number = 1350, // Reduced from 3600
+  quality: number = 0.85 // Reduced from 0.98
 ): Promise<string> => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -596,7 +597,7 @@ export const compressImage = (
         let width = img.width;
         let height = img.height;
         
-        // Preserve aspect ratio while ensuring image isn't too large
+        // More aggressive size reduction to prevent quota issues
         if (width > height) {
           if (width > maxWidth) {
             height = Math.round((height * maxWidth) / width);
@@ -609,17 +610,31 @@ export const compressImage = (
           }
         }
         
-        // Ensure image is never smaller than minimum dimensions for readability
-        const minDimension = 1600;
+        // Ensure minimum readable dimensions but cap maximum size
+        const minDimension = 800; // Reduced from 1600
+        const maxDimension = 2400; // Added maximum cap
+        
         if (width < minDimension && height < minDimension) {
-          // Scale up small images to be at least minDimension on smallest side
+          // Scale up small images but not too much
           if (width <= height) {
-            height = Math.round((height * minDimension) / width);
+            const ratio = minDimension / width;
+            height = Math.min(Math.round(height * ratio), maxDimension);
             width = minDimension;
           } else {
-            width = Math.round((width * minDimension) / height);
+            const ratio = minDimension / height;
+            width = Math.min(Math.round(width * ratio), maxDimension);
             height = minDimension;
           }
+        }
+        
+        // Cap maximum dimensions to prevent huge images
+        if (width > maxDimension) {
+          height = Math.round((height * maxDimension) / width);
+          width = maxDimension;
+        }
+        if (height > maxDimension) {
+          width = Math.round((width * maxDimension) / height);
+          height = maxDimension;
         }
         
         canvas.width = width;
@@ -627,15 +642,13 @@ export const compressImage = (
         
         const ctx = canvas.getContext('2d');
         
-        // Optimized image quality settings for better text readability
+        // Optimized image quality settings
         if (ctx) {
           ctx.imageSmoothingEnabled = true;
           ctx.imageSmoothingQuality = 'high';
-          
-          // Additional quality improvements for better rendering
           ctx.globalCompositeOperation = 'source-over';
           
-          // Only add white background for transparent images
+          // Add white background for transparent images to reduce file size
           if (file.type === 'image/png') {
             ctx.fillStyle = 'white';
             ctx.fillRect(0, 0, width, height);
@@ -644,16 +657,21 @@ export const compressImage = (
           ctx.drawImage(img, 0, 0, width, height);
         }
         
-        // Use image/png for better quality when possible, especially for images with text
-        const isVertical = img.height > img.width;
-        const hasText = isVertical || file.name.toLowerCase().includes('text') || file.name.toLowerCase().includes('document');
-        
-        // Use PNG for better quality with text, JPEG for photos
-        const mimeType = (file.type === 'image/png' || hasText) ? 'image/png' : 'image/jpeg';
-        const adjustedQuality = mimeType === 'image/png' ? 1.0 : Math.max(quality, 0.98);
+        // Use JPEG for better compression unless PNG is specifically needed
+        const useJpeg = file.type !== 'image/png' || file.size > 500000; // Use JPEG for files > 500KB
+        const mimeType = useJpeg ? 'image/jpeg' : 'image/png';
+        const adjustedQuality = useJpeg ? Math.max(quality, 0.75) : 1.0; // Minimum 75% quality for JPEG
         
         const result = canvas.toDataURL(mimeType, adjustedQuality);
-        resolve(result);
+        
+        // If result is still too large (>200KB base64), try more aggressive compression
+        if (result.length > 200000) {
+          console.log('Image still large after compression, applying more aggressive settings...');
+          const veryAggressiveResult = canvas.toDataURL('image/jpeg', 0.6);
+          resolve(veryAggressiveResult);
+        } else {
+          resolve(result);
+        }
       };
       
       img.onerror = (error) => {

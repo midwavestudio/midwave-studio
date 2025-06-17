@@ -2,9 +2,10 @@
 
 import { useState, useRef, useEffect, ChangeEvent, FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
-import { FiSave, FiX, FiImage, FiPlus, FiTrash2 } from 'react-icons/fi';
+import { FiSave, FiX, FiImage, FiPlus, FiTrash2, FiAlertTriangle } from 'react-icons/fi';
 import AdminLayout from '../../AdminLayout';
 import { compressImage, Project, PLACEHOLDER_IMAGES } from '@/lib/firebase/projectUtils';
+import { saveProjectsWithQuotaManagement, getStorageQuotaInfo } from '@/lib/utils/storageUtils';
 import React from 'react';
 
 // Helper to slugify a string
@@ -38,9 +39,26 @@ export default function EditProjectPage({ params }: EditProjectPageProps) {
   const [thumbnailPreview, setThumbnailPreview] = useState<string | null>(null);
   const [imagesPreviews, setImagesPreviews] = useState<string[]>([]);
   const [expandedImage, setExpandedImage] = useState<string | null>(null);
+  const [storageQuota, setStorageQuota] = useState<any>(null);
   
   const thumbnailFileRef = useRef<HTMLInputElement>(null);
   const imageFileRef = useRef<HTMLInputElement>(null);
+  
+  // Monitor storage quota
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const updateStorageQuota = () => {
+        const quota = getStorageQuotaInfo();
+        setStorageQuota(quota);
+      };
+      
+      updateStorageQuota();
+      
+      // Update quota info when form data changes
+      const interval = setInterval(updateStorageQuota, 2000);
+      return () => clearInterval(interval);
+    }
+  }, [formData, imagesPreviews]);
   
   // Fetch project data
   useEffect(() => {
@@ -438,17 +456,19 @@ export default function EditProjectPage({ params }: EditProjectPageProps) {
             
             console.log('Added updated Land Development project to localStorage');
             
-            // Save back to localStorage
-            localStorage.setItem('localProjects', JSON.stringify(projects));
+            // Save back to localStorage using quota management
+            const saveResult = saveProjectsWithQuotaManagement(projects);
             
-            // Double-check the save worked correctly
-            const verifyData = localStorage.getItem('localProjects');
-            if (verifyData) {
-              const verifyProjects = JSON.parse(verifyData) as Project[];
-              const savedProject = verifyProjects.find(p => p.id === 'land-development');
-              if (savedProject) {
-                console.log('Verified save - images count:', savedProject.imageUrls?.length || 0);
-              }
+            if (!saveResult.success) {
+              throw new Error(saveResult.error || 'Failed to save projects');
+            }
+            
+            if (saveResult.compressed) {
+              console.log('Projects were compressed to fit storage quota');
+              setErrors(prev => ({ 
+                ...prev, 
+                submit: 'Project saved successfully, but some images were compressed to fit storage limits.' 
+              }));
             }
             
             // Redirect back to projects page
@@ -518,8 +538,20 @@ export default function EditProjectPage({ params }: EditProjectPageProps) {
             projects[projectIndex] = updatedProject;
           }
           
-          // Save back to localStorage
-          localStorage.setItem('localProjects', JSON.stringify(projects));
+          // Save back to localStorage using quota management
+          const saveResult = saveProjectsWithQuotaManagement(projects);
+          
+          if (!saveResult.success) {
+            throw new Error(saveResult.error || 'Failed to save projects');
+          }
+          
+          if (saveResult.compressed) {
+            console.log('Projects were compressed to fit storage quota');
+            setErrors(prev => ({ 
+              ...prev, 
+              submit: 'Project saved successfully, but some images were compressed to fit storage limits.' 
+            }));
+          }
           
           // Verify the save
           const verifyData = localStorage.getItem('localProjects');
@@ -631,6 +663,31 @@ export default function EditProjectPage({ params }: EditProjectPageProps) {
         {errors.submit && (
           <div className="p-4 bg-red-900/20 text-red-300 rounded-lg">
             {errors.submit}
+          </div>
+        )}
+        
+        {/* Storage Quota Warning */}
+        {storageQuota && storageQuota.percentage > 70 && (
+          <div className={`p-4 rounded-lg flex items-start gap-3 ${
+            storageQuota.percentage > 90 
+              ? 'bg-red-900/20 text-red-300 border border-red-500/30' 
+              : 'bg-yellow-900/20 text-yellow-300 border border-yellow-500/30'
+          }`}>
+            <FiAlertTriangle size={20} className="flex-shrink-0 mt-0.5" />
+            <div>
+              <h3 className="font-semibold mb-1">Storage Usage Warning</h3>
+              <p className="text-sm mb-2">
+                Browser storage is {Math.round(storageQuota.percentage)}% full 
+                ({Math.round(storageQuota.used)}KB of {Math.round(storageQuota.total)}KB used).
+                {storageQuota.percentage > 90 
+                  ? ' You may encounter errors when adding large images.'
+                  : ' Consider using external image hosting for large files.'
+                }
+              </p>
+              <p className="text-xs opacity-80">
+                Tip: Use smaller images or external hosting services like ImgBB, Imgur, or Cloudinary to avoid storage limits.
+              </p>
+            </div>
           </div>
         )}
         
